@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -28,9 +29,92 @@ func (m Model) View() string {
 		return overlay(m.width, m.height, m.renderConfirm())
 	case modeProgress:
 		return overlay(m.width, m.height, m.renderProgress())
+	case modeView:
+		return m.renderViewer()
+	case modeEdit:
+		return m.renderEditor()
+	case modeHelp:
+		return overlay(m.width, m.height, m.renderHelp())
 	default:
 		return base
 	}
+}
+
+// renderHelp draws the keybinding overlay, generated from the keymap.
+func (m Model) renderHelp() string {
+	groups := m.keys.groups()
+	blocks := make([]string, 0, len(groups))
+	for _, g := range groups {
+		lines := []string{ui.HelpKey.Render(g.title)}
+		for _, b := range g.binds {
+			h := b.Help()
+			lines = append(lines, "  "+ui.HelpKey.Render(padRight(h.Key, 9))+ui.Faint.Render(h.Desc))
+		}
+		blocks = append(blocks, lipgloss.JoinVertical(lipgloss.Left, lines...))
+	}
+
+	// split the groups across two columns
+	mid := (len(blocks) + 1) / 2
+	left := joinBlocks(blocks[:mid])
+	right := joinBlocks(blocks[mid:])
+	cols := lipgloss.JoinHorizontal(lipgloss.Top, left, "     ", right)
+
+	header := ui.DialogTitle.Render("lazyfiles — keys")
+	footer := ui.Faint.Render("any key to close")
+	content := lipgloss.JoinVertical(lipgloss.Left, header, "", cols, "", footer)
+	return ui.Dialog.Render(content)
+}
+
+// joinBlocks stacks help blocks vertically with a blank line between them.
+func joinBlocks(blocks []string) string {
+	spaced := make([]string, 0, len(blocks)*2)
+	for i, b := range blocks {
+		if i > 0 {
+			spaced = append(spaced, "")
+		}
+		spaced = append(spaced, b)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, spaced...)
+}
+
+func padRight(s string, w int) string {
+	if gap := w - lipgloss.Width(s); gap > 0 {
+		return s + strings.Repeat(" ", gap)
+	}
+	return s
+}
+
+// renderViewer draws the read-only pager full-screen.
+func (m Model) renderViewer() string {
+	header := ui.StatusBar.Width(m.width).Render(" view · " + truncTail(m.viewTitle, m.width-8))
+	footer := ui.StatusBar.Width(m.width).Render(
+		fmt.Sprintf(" ↑/↓ scroll · e edit · q close%s%3.0f%%",
+			strings.Repeat(" ", pad(m.width, 40)), m.viewport.ScrollPercent()*100))
+	return lipgloss.JoinVertical(lipgloss.Left, header, m.viewport.View(), footer)
+}
+
+// renderEditor draws the nano-style editor full-screen.
+func (m Model) renderEditor() string {
+	name := m.edit.title
+	if m.editor.Value() != m.editOrig {
+		name += " *"
+	}
+	header := ui.StatusBar.Width(m.width).Render(" edit · " + truncTail(name, m.width-8))
+
+	hint := " Ctrl+S save · Ctrl+Q quit"
+	if m.editStatus != "" {
+		hint += " · " + m.editStatus
+	}
+	footer := ui.StatusBar.Width(m.width).Render(hint)
+	return lipgloss.JoinVertical(lipgloss.Left, header, m.editor.View(), footer)
+}
+
+// pad returns filler width so a right-aligned suffix roughly reaches the edge.
+func pad(total, used int) int {
+	if p := total - used; p > 1 {
+		return p
+	}
+	return 1
 }
 
 // overlay centers a modal box on a blank screen of the given size.
@@ -44,7 +128,7 @@ func (m Model) statusBar() string {
 	}
 
 	p := &m.panes[m.active]
-	left := p.Path
+	left := p.Title()
 
 	right := fmt.Sprintf("%d items", len(p.Entries))
 	if n := p.SelectedCount(); n > 0 {
@@ -54,6 +138,7 @@ func (m Model) statusBar() string {
 	if p.HiddenShown() {
 		right += " · hidden"
 	}
+	right += " · ? help"
 
 	pad := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if pad < 1 {
@@ -80,6 +165,17 @@ func (m Model) renderConfirm() string {
 	case fileops.OpUnwrap:
 		title = ui.DialogTitle.Render(fmt.Sprintf("Unpack %d %s here", n, archives(n)))
 		body = "→ " + truncTail(j.Dest, 44)
+	case fileops.OpAddToArchive:
+		verb := "Add"
+		if j.Move {
+			verb = "Move"
+		}
+		title = ui.DialogTitle.Render(fmt.Sprintf("%s %d %s into archive", verb, n, items(n)))
+		dest := filepath.Base(j.Dest)
+		if j.VDir != "" {
+			dest += "/" + j.VDir
+		}
+		body = "→ " + truncTail(dest+"/", 44)
 	default: // copy / move
 		title = ui.DialogTitle.Render(fmt.Sprintf("%s %d %s", j.Op, n, items(n)))
 		body = "→ " + truncTail(j.Dest, 44)

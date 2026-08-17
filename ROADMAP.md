@@ -56,8 +56,17 @@ lazyfiles/
 - [x] **Phase 3 — Archives.** `p` pack selection → other pane (`.tar.gz`) · `u` unpack →
       other pane · `U` unpack in place, all shelling out to `tar`/`unzip`/`7z`/`unrar` through
       the same progress plumbing (verbose output parsed for per-file progress). ← **you are here**
-- [ ] **Phase 4 — Public polish.** `?` help overlay, README + demo GIF, MIT license, CI
-      (`vet`/`test`/`golangci-lint`), `go install` + Homebrew instructions. Tag `v0.1.0`.
+- [x] **Phase 3.5 — View & edit text.** `v` opens a read-only pager, `e` a nano-style editor
+      (`Ctrl+S` save, `Ctrl+Q`/`Esc` quit with dirty guard). Works on real files **and inside
+      archives**: `Enter` browses a tar/zip as a virtual tree, `v`/`e` stream a member into
+      memory, and saving writes it back (targeted for zip/uncompressed-tar, transparent repack
+      for compressed tar). Binary files are refused. Copy/move (`c`/`m`) into an archive pane
+      **adds** files as members at the current virtual dir. ← **you are here**
+- [x] **Phase 4 — Public polish.** `?` help overlay (auto-generated from the keymap), README
+      with badges + install instructions + `demo.tape`, MIT license, GitHub Actions CI
+      (`vet`/`build`/`test` + golangci-lint), GoReleaser cross-platform release workflow,
+      `Makefile`, and `CONTRIBUTING.md`. Remaining for the maintainer: record `demo.gif`
+      (`vhs demo.tape`) and tag `v0.1.0`. ← **you are here**
 
 ## Keybindings (current)
 
@@ -81,8 +90,15 @@ lazyfiles/
 | `p`                | Pack selection → other pane     |
 | `u`                | Unpack archive → other pane     |
 | `U`                | Unpack archive in place         |
+| `Enter`            | Open dir / browse into archive  |
+| `v`                | View file (read-only pager)     |
+| `e`                | Edit file (nano-style)          |
+| `?`                | Keybinding help overlay         |
 | `y` / `n`          | Confirm / cancel a prompt       |
 | `q` / `Ctrl+C`     | Quit                            |
+
+In the **editor**: `Ctrl+S` save · `Ctrl+Q` quit (discard) · `Esc` quit (guards unsaved edits).
+In the **viewer**: `↑`/`↓`/`PgUp`/`PgDn` scroll · `e` switch to edit · `q`/`Esc` close.
 
 Operations act on the marked selection, or on the highlighted entry when nothing is marked.
 

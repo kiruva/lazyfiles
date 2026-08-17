@@ -86,6 +86,9 @@ var (
 	// Faint styles secondary text (e.g. the current file in progress).
 	Faint = lipgloss.NewStyle().Foreground(dim)
 
+	// HelpKey styles the key column in the help overlay.
+	HelpKey = lipgloss.NewStyle().Foreground(accent).Bold(true)
+
 	// BarFilled / BarEmpty render the progress bar.
 	BarFilled = lipgloss.NewStyle().Foreground(accent)
 	BarEmpty  = lipgloss.NewStyle().Foreground(dim)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/kiruva/lazyfiles/internal/fileops"
 	"github.com/kiruva/lazyfiles/internal/ui"
 )
 
@@ -22,6 +23,11 @@ type Model struct {
 	sort       SortMode
 	showHidden bool
 	selected   map[string]bool // keys are entry names in the current dir
+
+	// archive browsing (virtual filesystem inside a packed file)
+	archive string           // "" = real filesystem; otherwise the archive's real path
+	vpath   string           // current virtual directory within the archive ("" = root)
+	members []fileops.Member // cached full member listing
 }
 
 // New builds a pane rooted at path and loads its contents.
@@ -37,6 +43,17 @@ func (m *Model) SetSize(w, h int) {
 }
 
 func (m *Model) reload() {
+	if m.archive != "" {
+		entries := virtualEntries(m.members, m.vpath)
+		if !m.showHidden {
+			entries = dropDotfiles(entries)
+		}
+		sortEntries(entries, m.sort)
+		m.Entries = entries
+		m.clampCursor()
+		return
+	}
+
 	hasParent := filepath.Dir(m.Path) != m.Path
 	entries, err := readRaw(m.Path, hasParent)
 	if err != nil {
@@ -45,17 +62,21 @@ func (m *Model) reload() {
 		return
 	}
 	if !m.showHidden {
-		filtered := entries[:0]
-		for _, e := range entries {
-			if !e.isDotfile() {
-				filtered = append(filtered, e)
-			}
-		}
-		entries = filtered
+		entries = dropDotfiles(entries)
 	}
 	sortEntries(entries, m.sort)
 	m.Entries = entries
 	m.clampCursor()
+}
+
+func dropDotfiles(entries []Entry) []Entry {
+	filtered := entries[:0]
+	for _, e := range entries {
+		if !e.isDotfile() {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
 }
 
 func (m *Model) clampCursor() {
@@ -101,10 +122,15 @@ func (m *Model) Bottom()   { m.Cursor = max(len(m.Entries)-1, 0) }
 
 // Navigation -----------------------------------------------------------------
 
-// Enter descends into the highlighted directory (or ".." to the parent).
+// Enter descends into the highlighted directory (or ".." to the parent). Inside
+// an archive it walks the virtual tree and exits the archive at the root.
 func (m *Model) Enter() {
 	cur, ok := m.Current()
 	if !ok || !cur.IsDir {
+		return
+	}
+	if m.archive != "" {
+		m.navigateArchive(cur.Name)
 		return
 	}
 	if cur.Name == ".." {
@@ -115,8 +141,12 @@ func (m *Model) Enter() {
 	m.enterDir()
 }
 
-// Ascend moves to the parent directory.
+// Ascend moves to the parent directory (or up/out of the archive).
 func (m *Model) Ascend() {
+	if m.archive != "" {
+		m.navigateArchive("..")
+		return
+	}
 	if parent := filepath.Dir(m.Path); parent != m.Path {
 		m.Path = parent
 		m.enterDir()
@@ -152,8 +182,16 @@ func (m *Model) SelectedCount() int { return len(m.selected) }
 // ClearSelection drops all marks (called after an operation completes).
 func (m *Model) ClearSelection() { m.selected = map[string]bool{} }
 
-// Refresh re-reads the current directory in place, keeping path and cursor.
-func (m *Model) Refresh() { m.reload() }
+// Refresh re-reads the current location in place, keeping path and cursor. When
+// browsing an archive it re-lists the members so on-disk changes are reflected.
+func (m *Model) Refresh() {
+	if m.archive != "" {
+		if members, err := fileops.ListMembers(m.archive); err == nil {
+			m.members = members
+		}
+	}
+	m.reload()
+}
 
 // SelectedNames returns the selected entry names, or the current entry's name
 // if nothing is explicitly selected (the "act on cursor" fallback).
@@ -203,7 +241,7 @@ func (m Model) View(active bool) string {
 	innerW := max(m.width-2, 1)
 	innerH := max(m.height-2, 1)
 
-	title := ui.Title.Render(truncate(m.Path, innerW))
+	title := ui.Title.Render(truncate(m.displayPath(), innerW))
 	rows := max(innerH-1, 1)
 
 	start := 0

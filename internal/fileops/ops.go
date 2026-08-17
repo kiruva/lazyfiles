@@ -19,9 +19,10 @@ const (
 	OpCopy Op = iota
 	OpMove
 	OpDelete
-	OpPack   // create an archive (Out) from Srcs
-	OpUnpack // extract Srcs (archives) into Dest (the other pane)
-	OpUnwrap // extract Srcs (archives) in place (Dest = source dir)
+	OpPack         // create an archive (Out) from Srcs
+	OpUnpack       // extract Srcs (archives) into Dest (the other pane)
+	OpUnwrap       // extract Srcs (archives) in place (Dest = source dir)
+	OpAddToArchive // add real files (Srcs) into archive Dest at VDir
 )
 
 func (o Op) String() string {
@@ -38,6 +39,8 @@ func (o Op) String() string {
 		return "Unpack"
 	case OpUnwrap:
 		return "Unpack here"
+	case OpAddToArchive:
+		return "Add to archive"
 	default:
 		return "?"
 	}
@@ -56,6 +59,8 @@ func (o Op) Present() string {
 		return "Packing"
 	case OpUnpack, OpUnwrap:
 		return "Unpacking"
+	case OpAddToArchive:
+		return "Adding to archive"
 	default:
 		return "Working"
 	}
@@ -66,8 +71,10 @@ func (o Op) Present() string {
 type Job struct {
 	Op   Op
 	Srcs []string // absolute source paths (archives for unpack/unwrap)
-	Dest string   // destination directory
+	Dest string   // destination directory, or archive path (add-to-archive)
 	Out  string   // output archive path (pack)
+	VDir string   // virtual directory within the archive (add-to-archive)
+	Move bool     // add-to-archive: delete sources after adding
 }
 
 // Progress is emitted repeatedly as the job runs.
@@ -97,6 +104,8 @@ func Run(job Job) <-chan any {
 			err = pack(job, r)
 		case OpUnpack, OpUnwrap:
 			err = extractAll(job, r)
+		case OpAddToArchive:
+			err = addToArchive(job, r)
 		default:
 			for _, src := range job.Srcs {
 				switch job.Op {

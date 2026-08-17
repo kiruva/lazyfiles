@@ -1,6 +1,8 @@
 package app
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -27,19 +29,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.finishOp(msg), nil
 
 	case tea.KeyMsg:
-		switch m.mode {
-		case modeConfirm:
-			return m.onConfirmKey(msg)
-		case modeProgress:
-			return m, nil // input is locked while an operation runs
-		default:
-			return m.onNormalKey(msg)
-		}
+		return m.onKey(msg)
+	}
+
+	// Non-key messages (e.g. cursor blink) are routed to the active component.
+	switch m.mode {
+	case modeEdit:
+		var cmd tea.Cmd
+		m.editor, cmd = m.editor.Update(msg)
+		return m, cmd
+	case modeView:
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		return m, cmd
 	}
 	return m, nil
 }
 
-// onNormalKey handles navigation and triggers operations.
+// onKey dispatches a keypress to the handler for the current mode.
+func (m Model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch m.mode {
+	case modeConfirm:
+		return m.onConfirmKey(msg)
+	case modeProgress:
+		return m, nil // input is locked while an operation runs
+	case modeView:
+		return m.onViewKey(msg)
+	case modeEdit:
+		return m.onEditKey(msg)
+	case modeHelp:
+		m.mode = modeNormal // any key dismisses the help overlay
+		return m, nil
+	default:
+		return m.onNormalKey(msg)
+	}
+}
+
+// onNormalKey handles navigation and triggers operations / view / edit.
 func (m Model) onNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.errText = "" // any key clears a stale error banner
 	p := &m.panes[m.active]
@@ -60,7 +86,7 @@ func (m Model) onNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Bottom):
 		p.Bottom()
 	case key.Matches(msg, m.keys.Enter):
-		p.Enter()
+		m.enterOrOpen()
 	case key.Matches(msg, m.keys.Back):
 		p.Ascend()
 	case key.Matches(msg, m.keys.Select):
@@ -71,6 +97,12 @@ func (m Model) onNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		p.CycleSort()
 	case key.Matches(msg, m.keys.Switch):
 		m.active = 1 - m.active
+	case key.Matches(msg, m.keys.Help):
+		m.mode = modeHelp
+	case key.Matches(msg, m.keys.View):
+		return m, m.openViewer()
+	case key.Matches(msg, m.keys.Edit):
+		return m, m.openEditor()
 	case key.Matches(msg, m.keys.Copy):
 		m.beginOp(fileops.OpCopy)
 	case key.Matches(msg, m.keys.Move):
@@ -98,11 +130,171 @@ func (m Model) onConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// onViewKey drives the read-only pager.
+func (m Model) onViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "esc":
+		m.mode = modeNormal
+		return m, nil
+	case "e":
+		return m, m.openEditor() // hand off to the editor on the same file
+	}
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
+}
+
+// onEditKey drives the nano-style editor.
+func (m Model) onEditKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+s":
+		m.saveEditor()
+		return m, nil
+	case "ctrl+q":
+		m.closeEditor()
+		return m, nil
+	case "esc":
+		if m.editor.Value() != m.editOrig {
+			m.editStatus = "unsaved — Ctrl+S to save, Ctrl+Q to discard"
+			return m, nil
+		}
+		m.closeEditor()
+		return m, nil
+	}
+	m.editStatus = ""
+	var cmd tea.Cmd
+	m.editor, cmd = m.editor.Update(msg)
+	return m, cmd
+}
+
+// enterOrOpen descends into a directory, or opens an archive for browsing.
+func (m *Model) enterOrOpen() {
+	p := &m.panes[m.active]
+	if !p.InArchive() {
+		if cur, ok := p.Current(); ok && !cur.IsDir && fileops.Browsable(cur.Name) {
+			if err := p.EnterArchive(filepath.Join(p.Path, cur.Name)); err != nil {
+				m.errText = "cannot open archive: " + err.Error()
+			}
+			return
+		}
+	}
+	p.Enter()
+}
+
+// loadCurrent reads the highlighted file (real or in-archive) into memory.
+func (m *Model) loadCurrent() (data []byte, title string, err error) {
+	p := &m.panes[m.active]
+	if p.InArchive() {
+		mem, ok := p.CurrentMemberPath()
+		if !ok {
+			return nil, "", fmt.Errorf("select a file to open")
+		}
+		data, err = fileops.ReadMember(p.ArchivePath(), mem)
+		return data, mem, err
+	}
+	cur, ok := p.Current()
+	if !ok || cur.IsDir {
+		return nil, "", fmt.Errorf("select a file to open")
+	}
+	full := filepath.Join(p.Path, cur.Name)
+	data, err = os.ReadFile(full)
+	return data, cur.Name, err
+}
+
+// openViewer loads the current file into the read-only pager.
+func (m *Model) openViewer() tea.Cmd {
+	data, title, err := m.loadCurrent()
+	if err != nil {
+		m.errText = err.Error()
+		return nil
+	}
+	if isBinary(data) {
+		m.errText = "not a text file: " + title
+		return nil
+	}
+	m.viewTitle = title
+	m.viewport.SetContent(string(data))
+	m.viewport.GotoTop()
+	m.mode = modeView
+	return nil
+}
+
+// openEditor loads the current file into the editor and remembers where to save.
+func (m *Model) openEditor() tea.Cmd {
+	data, title, err := m.loadCurrent()
+	if err != nil {
+		m.errText = err.Error()
+		return nil
+	}
+	if isBinary(data) {
+		m.errText = "not a text file: " + title
+		return nil
+	}
+
+	p := &m.panes[m.active]
+	m.edit = editTarget{title: title}
+	if p.InArchive() {
+		mem, _ := p.CurrentMemberPath()
+		m.edit.archive = p.ArchivePath()
+		m.edit.member = mem
+	} else {
+		cur, _ := p.Current()
+		m.edit.realPath = filepath.Join(p.Path, cur.Name)
+	}
+
+	m.editOrig = string(data)
+	m.editStatus = ""
+	m.editor.SetValue(string(data))
+	m.mode = modeEdit
+	return m.editor.Focus()
+}
+
+// saveEditor writes the buffer back to its origin (file or archive member).
+func (m *Model) saveEditor() {
+	data := []byte(m.editor.Value())
+
+	var err error
+	if m.edit.archive != "" {
+		err = fileops.WriteMember(m.edit.archive, m.edit.member, data)
+	} else {
+		perm := os.FileMode(0o644)
+		if fi, e := os.Stat(m.edit.realPath); e == nil {
+			perm = fi.Mode().Perm()
+		}
+		err = os.WriteFile(m.edit.realPath, data, perm)
+	}
+	if err != nil {
+		m.errText = "save failed: " + err.Error()
+		m.editStatus = "save failed"
+		return
+	}
+
+	m.editOrig = string(data) // buffer is now clean
+	m.editStatus = "saved"
+	m.panes[m.active].Refresh()
+}
+
+func (m *Model) closeEditor() {
+	m.mode = modeNormal
+	m.editor.Blur()
+	m.editStatus = ""
+}
+
 // beginOp assembles a job from the active pane's selection and asks for
 // confirmation. Source = active pane; destination = the other pane (except
 // delete, which has none, and unwrap, which extracts in place).
 func (m *Model) beginOp(op fileops.Op) {
 	src := &m.panes[m.active]
+	if src.InArchive() {
+		m.errText = "not available inside an archive — unpack it first"
+		return
+	}
+	// Pack/unpack need a real destination directory; copy/move can target an
+	// archive (handled below as add-to-archive).
+	if (op == fileops.OpPack || op == fileops.OpUnpack) && m.panes[1-m.active].InArchive() {
+		m.errText = "destination pane is inside an archive"
+		return
+	}
 	names := src.SelectedNames()
 	if len(names) == 0 {
 		return
@@ -112,13 +304,25 @@ func (m *Model) beginOp(op fileops.Op) {
 	for _, n := range names {
 		srcs = append(srcs, filepath.Join(src.Path, n))
 	}
-	other := m.panes[1-m.active].Path
+	dst := &m.panes[1-m.active]
+	other := dst.Path
 
 	m.willOverwrite = false
 	job := fileops.Job{Op: op, Srcs: srcs}
 
 	switch op {
 	case fileops.OpCopy, fileops.OpMove:
+		if dst.InArchive() {
+			// Copy/move real files into the archive at its current virtual dir.
+			job = fileops.Job{
+				Op:   fileops.OpAddToArchive,
+				Srcs: srcs,
+				Dest: dst.ArchivePath(),
+				VDir: dst.VPath(),
+				Move: op == fileops.OpMove,
+			}
+			break
+		}
 		if other == src.Path {
 			m.errText = "source and destination are the same directory"
 			return
@@ -211,12 +415,22 @@ func (m Model) finishOp(res fileops.Result) Model {
 	return m
 }
 
-// resizePanes splits the terminal into two side-by-side panes above the status bar.
+// resizePanes splits the terminal into two panes above the status bar and sizes
+// the view/edit components to the full body area.
 func (m *Model) resizePanes() {
 	bodyH := m.height - 1 // reserve one line for the status bar
 	leftW := m.width / 2
 	m.panes[0].SetSize(leftW, bodyH)
 	m.panes[1].SetSize(m.width-leftW, bodyH)
+
+	compH := m.height - 2 // header + footer
+	if compH < 1 {
+		compH = 1
+	}
+	m.viewport.Width = m.width
+	m.viewport.Height = compH
+	m.editor.SetWidth(m.width)
+	m.editor.SetHeight(compH)
 }
 
 // waitCmd blocks on the next value from the operation channel and delivers it
@@ -232,4 +446,13 @@ func waitCmd(ch <-chan any) tea.Cmd {
 		}
 		return msg
 	}
+}
+
+// isBinary reports whether data looks non-textual (contains a NUL byte).
+func isBinary(data []byte) bool {
+	n := len(data)
+	if n > 8000 {
+		n = 8000
+	}
+	return bytes.IndexByte(data[:n], 0) >= 0
 }

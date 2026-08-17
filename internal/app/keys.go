@@ -22,6 +22,8 @@ type keyMap struct {
 	Pack     key.Binding
 	Unpack   key.Binding
 	Unwrap   key.Binding
+	View     key.Binding
+	Edit     key.Binding
 	Help     key.Binding
 	Quit     key.Binding
 }
@@ -100,6 +102,14 @@ func defaultKeys() keyMap {
 			key.WithKeys("U"),
 			key.WithHelp("U", "unpack here"),
 		),
+		View: key.NewBinding(
+			key.WithKeys("v"),
+			key.WithHelp("v", "view"),
+		),
+		Edit: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "edit"),
+		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),
 			key.WithHelp("?", "help"),
@@ -108,5 +118,22 @@ func defaultKeys() keyMap {
 			key.WithKeys("q", "ctrl+c"),
 			key.WithHelp("q", "quit"),
 		),
+	}
+}
+
+// helpGroup is a titled cluster of bindings shown in the help overlay.
+type helpGroup struct {
+	title string
+	binds []key.Binding
+}
+
+// groups organizes the bindings for the help overlay.
+func (k keyMap) groups() []helpGroup {
+	return []helpGroup{
+		{"Navigate", []key.Binding{k.Up, k.Down, k.PageDown, k.Top, k.Bottom, k.Enter, k.Back, k.Switch}},
+		{"Select & view", []key.Binding{k.Select, k.Sort, k.Hidden, k.View, k.Edit}},
+		{"Operations", []key.Binding{k.Copy, k.Move, k.Delete}},
+		{"Archives", []key.Binding{k.Pack, k.Unpack, k.Unwrap}},
+		{"App", []key.Binding{k.Help, k.Quit}},
 	}
 }

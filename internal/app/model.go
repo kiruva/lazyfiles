@@ -4,6 +4,8 @@ package app
 import (
 	"os"
 
+	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/kiruva/lazyfiles/internal/fileops"
@@ -17,7 +19,18 @@ const (
 	modeNormal   mode = iota // navigating the panes
 	modeConfirm              // awaiting y/n on a pending operation
 	modeProgress             // an operation is running
+	modeView                 // read-only text pager
+	modeEdit                 // nano-style text editor
+	modeHelp                 // keybinding overlay
 )
+
+// editTarget records what an edit session is writing back to.
+type editTarget struct {
+	realPath string // set for a real file on disk
+	archive  string // set for an archive member
+	member   string // in-archive path (with archive)
+	title    string // display name
+}
 
 // Model is the top-level application state.
 type Model struct {
@@ -35,6 +48,14 @@ type Model struct {
 	progress      fileops.Progress
 	progressCh    <-chan any
 	errText       string
+
+	// view/edit state
+	viewport   viewport.Model
+	viewTitle  string
+	editor     textarea.Model
+	edit       editTarget
+	editOrig   string // content as loaded, for dirty detection
+	editStatus string // transient footer message ("saved", etc.)
 }
 
 // New constructs the app with both panes rooted at the current directory.
@@ -43,10 +64,18 @@ func New() Model {
 	if err != nil {
 		wd = string(os.PathSeparator)
 	}
+
+	ta := textarea.New()
+	ta.CharLimit = 0 // no limit
+	ta.ShowLineNumbers = true
+	ta.Prompt = ""
+
 	return Model{
-		panes:  [2]pane.Model{pane.New(wd), pane.New(wd)},
-		active: 0,
-		keys:   defaultKeys(),
+		panes:    [2]pane.Model{pane.New(wd), pane.New(wd)},
+		active:   0,
+		keys:     defaultKeys(),
+		viewport: viewport.New(0, 0),
+		editor:   ta,
 	}
 }
 
