@@ -16,6 +16,9 @@ type keyMap struct {
 	Select   key.Binding
 	Hidden   key.Binding
 	Sort     key.Binding
+	Copy     key.Binding
+	Move     key.Binding
+	Delete   key.Binding
 	Help     key.Binding
 	Quit     key.Binding
 }
@@ -69,6 +72,18 @@ func defaultKeys() keyMap {
 		Sort: key.NewBinding(
 			key.WithKeys("s"),
 			key.WithHelp("s", "sort"),
+		),
+		Copy: key.NewBinding(
+			key.WithKeys("f5", "c"),
+			key.WithHelp("F5/c", "copy"),
+		),
+		Move: key.NewBinding(
+			key.WithKeys("f6", "m"),
+			key.WithHelp("F6/m", "move"),
+		),
+		Delete: key.NewBinding(
+			key.WithKeys("f8", "delete", "d"),
+			key.WithHelp("F8/del", "delete"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),

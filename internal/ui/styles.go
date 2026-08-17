@@ -9,6 +9,7 @@ var (
 	dim      = lipgloss.Color("240") // grey — inactive borders
 	fgBright = lipgloss.Color("231") // near-white text
 	barBg    = lipgloss.Color("237") // status bar background
+	danger   = lipgloss.Color("196") // red — destructive actions / errors
 )
 
 var (
@@ -52,4 +53,40 @@ var (
 	StatusBar = lipgloss.NewStyle().
 			Foreground(fgBright).
 			Background(barBg)
+
+	// ErrorBar styles the bottom bar when an operation failed.
+	ErrorBar = lipgloss.NewStyle().
+			Foreground(fgBright).
+			Background(danger).
+			Bold(true)
+
+	// Dialog is the bordered box for confirm/progress modals.
+	Dialog = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(accent).
+		Padding(1, 3)
+
+	// DialogTitle styles the modal heading.
+	DialogTitle = lipgloss.NewStyle().
+			Foreground(accent).
+			Bold(true)
+
+	// DialogHint styles the [y]/[n] key chips in a modal.
+	DialogHint = lipgloss.NewStyle().
+			Foreground(fgBright).
+			Background(accent).
+			Bold(true).
+			Padding(0, 1)
+
+	// Danger styles destructive/overwrite warnings.
+	Danger = lipgloss.NewStyle().
+		Foreground(danger).
+		Bold(true)
+
+	// Faint styles secondary text (e.g. the current file in progress).
+	Faint = lipgloss.NewStyle().Foreground(dim)
+
+	// BarFilled / BarEmpty render the progress bar.
+	BarFilled = lipgloss.NewStyle().Foreground(accent)
+	BarEmpty  = lipgloss.NewStyle().Foreground(dim)
 )

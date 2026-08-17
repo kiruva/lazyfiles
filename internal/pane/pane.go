@@ -149,6 +149,12 @@ func (m *Model) ToggleSelect() {
 // SelectedCount returns how many entries are selected.
 func (m *Model) SelectedCount() int { return len(m.selected) }
 
+// ClearSelection drops all marks (called after an operation completes).
+func (m *Model) ClearSelection() { m.selected = map[string]bool{} }
+
+// Refresh re-reads the current directory in place, keeping path and cursor.
+func (m *Model) Refresh() { m.reload() }
+
 // SelectedNames returns the selected entry names, or the current entry's name
 // if nothing is explicitly selected (the "act on cursor" fallback).
 func (m *Model) SelectedNames() []string {

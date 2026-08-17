@@ -6,7 +6,17 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/kiruva/lazyfiles/internal/fileops"
 	"github.com/kiruva/lazyfiles/internal/pane"
+)
+
+// mode is the top-level input mode / modal state.
+type mode int
+
+const (
+	modeNormal   mode = iota // navigating the panes
+	modeConfirm              // awaiting y/n on a pending operation
+	modeProgress             // an operation is running
 )
 
 // Model is the top-level application state.
@@ -16,6 +26,15 @@ type Model struct {
 	width  int
 	height int
 	keys   keyMap
+
+	mode mode
+
+	// operation state
+	pending       fileops.Job // job awaiting confirmation
+	willOverwrite bool        // pending job would clobber existing files
+	progress      fileops.Progress
+	progressCh    <-chan any
+	errText       string
 }
 
 // New constructs the app with both panes rooted at the current directory.

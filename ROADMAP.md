@@ -49,8 +49,10 @@ lazyfiles/
 - [x] **Phase 1 — Navigation polish.** Multi-select with `Space`, sort modes (`s`:
       name/size/time), hidden-file toggle (`.`), page/top/bottom paging, and a status bar
       with item count, selection count, sort mode, and hidden indicator. ← **you are here**
-- [ ] **Phase 2 — File operations.** `F5` copy · `F6` move · `F8`/`Del` delete — all
-      recursive, all with a live progress dialog and a confirm/overwrite prompt.
+- [x] **Phase 2 — File operations.** `F5`/`c` copy · `F6`/`m` move · `F8`/`Del`/`d` delete —
+      all recursive, active pane → other pane, off the UI thread via a `fileops` engine that
+      streams progress. Confirm dialog (with overwrite warning), live progress bar, and both
+      panes auto-refresh on completion. ← **you are here**
 - [ ] **Phase 3 — Archives.** Unpack → other pane · Pack selection · Unwrap in place,
       via the same progress plumbing (shelling out to `tar`/`zip`/`7z`).
 - [ ] **Phase 4 — Public polish.** `?` help overlay, README + demo GIF, MIT license, CI
@@ -72,4 +74,10 @@ lazyfiles/
 | `Space`            | Select / deselect entry         |
 | `s`                | Cycle sort (name → size → time) |
 | `.`                | Toggle hidden files             |
+| `F5` / `c`         | Copy selection → other pane     |
+| `F6` / `m`         | Move selection → other pane     |
+| `F8` / `Del` / `d` | Delete selection                |
+| `y` / `n`          | Confirm / cancel a prompt       |
 | `q` / `Ctrl+C`     | Quit                            |
+
+Operations act on the marked selection, or on the highlighted entry when nothing is marked.

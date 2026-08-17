@@ -5,8 +5,8 @@
 Built for the Linux community first, comfortable on macOS. Leans on what Total Commander is
 to Windows, reimagined for the terminal.
 
-> **Status:** early days — Phase 1 (dual-pane navigation with multi-select, sorting, and
-> filtering). See [ROADMAP.md](ROADMAP.md).
+> **Status:** early days — Phase 2 (dual-pane navigation + recursive copy/move/delete with
+> live progress). See [ROADMAP.md](ROADMAP.md).
 
 ## Run it
 
@@ -28,7 +28,14 @@ go run .
 | `Space`            | Select / deselect entry         |
 | `s`                | Cycle sort (name → size → time) |
 | `.`                | Toggle hidden files             |
+| `F5` / `c`         | Copy selection → other pane     |
+| `F6` / `m`         | Move selection → other pane     |
+| `F8` / `Del` / `d` | Delete selection                |
+| `y` / `n`          | Confirm / cancel a prompt       |
 | `q` / `Ctrl+C`     | Quit                            |
+
+Operations act on the marked selection (`Space`), or on the highlighted entry when nothing
+is marked. Copy/move always go from the **active** pane to the **other** pane.
 
 ## Built with
 
