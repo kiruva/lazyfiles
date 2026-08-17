@@ -5,7 +5,8 @@
 Built for the Linux community first, comfortable on macOS. Leans on what Total Commander is
 to Windows, reimagined for the terminal.
 
-> **Status:** early days — Phase 0 (running dual-pane skeleton). See [ROADMAP.md](ROADMAP.md).
+> **Status:** early days — Phase 1 (dual-pane navigation with multi-select, sorting, and
+> filtering). See [ROADMAP.md](ROADMAP.md).
 
 ## Run it
 
@@ -15,14 +16,19 @@ go run .
 
 ## Keys
 
-| Key            | Action              |
-| -------------- | ------------------- |
-| `j` / `↓`      | Move cursor down    |
-| `k` / `↑`      | Move cursor up      |
-| `l` / `enter`  | Open directory      |
-| `h` / `⌫`      | Go to parent dir    |
-| `Tab`          | Switch active pane  |
-| `q` / `Ctrl+C` | Quit                |
+| Key                | Action                          |
+| ------------------ | ------------------------------- |
+| `j` / `↓`          | Move cursor down                |
+| `k` / `↑`          | Move cursor up                  |
+| `PgDn` / `PgUp`    | Page down / up                  |
+| `g` / `G`          | Jump to top / bottom            |
+| `l` / `enter`      | Open directory                  |
+| `h` / `⌫`          | Go to parent dir                |
+| `Tab`              | Switch active pane              |
+| `Space`            | Select / deselect entry         |
+| `s`                | Cycle sort (name → size → time) |
+| `.`                | Toggle hidden files             |
+| `q` / `Ctrl+C`     | Quit                            |
 
 ## Built with
 

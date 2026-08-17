@@ -38,6 +38,11 @@ var (
 		Foreground(accent).
 		Bold(true)
 
+	// Selected styles entries the user has marked with Space.
+	Selected = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("220")). // amber
+			Bold(true)
+
 	// Title styles the path shown at the top of each pane.
 	Title = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("252")).

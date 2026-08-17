@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -14,25 +15,32 @@ func (m Model) View() string {
 		return "loading…"
 	}
 
-	bodyH := m.height - 1 // reserve one line for the status bar
-	leftW := m.width / 2
-	rightW := m.width - leftW
-
-	left := m.panes[0].View(leftW, bodyH, m.active == 0)
-	right := m.panes[1].View(rightW, bodyH, m.active == 1)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
-
+	body := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		m.panes[0].View(m.active == 0),
+		m.panes[1].View(m.active == 1),
+	)
 	return lipgloss.JoinVertical(lipgloss.Left, body, m.statusBar())
 }
 
 func (m Model) statusBar() string {
-	loc := m.panes[m.active].Path
-	help := "tab: switch   j/k: move   l: open   h: up   q: quit"
+	p := &m.panes[m.active]
 
-	pad := m.width - lipgloss.Width(loc) - lipgloss.Width(help)
+	left := p.Path
+
+	right := fmt.Sprintf("%d items", len(p.Entries))
+	if n := p.SelectedCount(); n > 0 {
+		right += fmt.Sprintf(" · %d selected", n)
+	}
+	right += fmt.Sprintf(" · sort:%s", p.SortModeLabel())
+	if p.HiddenShown() {
+		right += " · hidden"
+	}
+
+	pad := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if pad < 1 {
 		pad = 1
 	}
-	bar := loc + strings.Repeat(" ", pad) + help
+	bar := left + strings.Repeat(" ", pad) + right
 	return ui.StatusBar.Width(m.width).Render(bar)
 }

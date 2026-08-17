@@ -45,9 +45,10 @@ lazyfiles/
 ## Phases
 
 - [x] **Phase 0 — Scaffold.** Running two-pane skeleton: reads real dirs, `j/k` move,
-      `l`/`enter` open, `h` up, `Tab` switch pane, `q` quit. ← **you are here**
-- [ ] **Phase 1 — Navigation polish.** Sorting modes, hidden-file toggle, scroll/paging,
-      selection with `Space`, breadcrumb + item counts in status bar.
+      `l`/`enter` open, `h` up, `Tab` switch pane, `q` quit.
+- [x] **Phase 1 — Navigation polish.** Multi-select with `Space`, sort modes (`s`:
+      name/size/time), hidden-file toggle (`.`), page/top/bottom paging, and a status bar
+      with item count, selection count, sort mode, and hidden indicator. ← **you are here**
 - [ ] **Phase 2 — File operations.** `F5` copy · `F6` move · `F8`/`Del` delete — all
       recursive, all with a live progress dialog and a confirm/overwrite prompt.
 - [ ] **Phase 3 — Archives.** Unpack → other pane · Pack selection · Unwrap in place,
@@ -57,11 +58,18 @@ lazyfiles/
 
 ## Keybindings (current)
 
-| Key            | Action              |
-| -------------- | ------------------- |
-| `j` / `↓`      | Move cursor down    |
-| `k` / `↑`      | Move cursor up      |
-| `l` / `enter`  | Open directory      |
-| `h` / `⌫`      | Go to parent dir    |
-| `Tab`          | Switch active pane  |
-| `q` / `Ctrl+C` | Quit                |
+| Key                | Action                          |
+| ------------------ | ------------------------------- |
+| `j` / `↓`          | Move cursor down                |
+| `k` / `↑`          | Move cursor up                  |
+| `PgDn` / `Ctrl+D`  | Page down                       |
+| `PgUp` / `Ctrl+U`  | Page up                         |
+| `g` / `Home`       | Jump to top                     |
+| `G` / `End`        | Jump to bottom                  |
+| `l` / `enter`      | Open directory                  |
+| `h` / `⌫`          | Go to parent dir                |
+| `Tab`              | Switch active pane              |
+| `Space`            | Select / deselect entry         |
+| `s`                | Cycle sort (name → size → time) |
+| `.`                | Toggle hidden files             |
+| `q` / `Ctrl+C`     | Quit                            |
