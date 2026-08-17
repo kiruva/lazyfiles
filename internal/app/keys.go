@@ -19,6 +19,9 @@ type keyMap struct {
 	Copy     key.Binding
 	Move     key.Binding
 	Delete   key.Binding
+	Pack     key.Binding
+	Unpack   key.Binding
+	Unwrap   key.Binding
 	Help     key.Binding
 	Quit     key.Binding
 }
@@ -84,6 +87,18 @@ func defaultKeys() keyMap {
 		Delete: key.NewBinding(
 			key.WithKeys("f8", "delete", "d"),
 			key.WithHelp("F8/del", "delete"),
+		),
+		Pack: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "pack"),
+		),
+		Unpack: key.NewBinding(
+			key.WithKeys("u"),
+			key.WithHelp("u", "unpack"),
+		),
+		Unwrap: key.NewBinding(
+			key.WithKeys("U"),
+			key.WithHelp("U", "unpack here"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),

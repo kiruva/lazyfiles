@@ -67,15 +67,25 @@ func (m Model) renderConfirm() string {
 	n := len(j.Srcs)
 
 	var title, body string
-	if j.Op == fileops.OpDelete {
+	switch j.Op {
+	case fileops.OpDelete:
 		title = ui.Danger.Render(fmt.Sprintf("Delete %d %s?", n, items(n)))
 		body = "This cannot be undone."
-	} else {
+	case fileops.OpPack:
+		title = ui.DialogTitle.Render(fmt.Sprintf("Pack %d %s", n, items(n)))
+		body = "→ " + truncTail(j.Out, 44)
+	case fileops.OpUnpack:
+		title = ui.DialogTitle.Render(fmt.Sprintf("Unpack %d %s", n, archives(n)))
+		body = "→ " + truncTail(j.Dest, 44)
+	case fileops.OpUnwrap:
+		title = ui.DialogTitle.Render(fmt.Sprintf("Unpack %d %s here", n, archives(n)))
+		body = "→ " + truncTail(j.Dest, 44)
+	default: // copy / move
 		title = ui.DialogTitle.Render(fmt.Sprintf("%s %d %s", j.Op, n, items(n)))
 		body = "→ " + truncTail(j.Dest, 44)
-		if m.willOverwrite {
-			body += "\n" + ui.Danger.Render("Existing files will be overwritten.")
-		}
+	}
+	if m.willOverwrite {
+		body += "\n" + ui.Danger.Render("Existing files will be overwritten.")
 	}
 
 	prompt := ui.DialogHint.Render("y") + " confirm    " + ui.DialogHint.Render("n") + " cancel"
@@ -86,11 +96,17 @@ func (m Model) renderConfirm() string {
 func (m Model) renderProgress() string {
 	p := m.progress
 	title := ui.DialogTitle.Render(m.pending.Op.Present() + "…")
-	bar := progressBar(p.Done, p.Total, 30)
-	stat := fmt.Sprintf("%d / %d", p.Done, p.Total)
+
+	var line string
+	if p.Total > 0 {
+		line = progressBar(p.Done, p.Total, 30) + fmt.Sprintf("  %d / %d", p.Done, p.Total)
+	} else {
+		// Total unknown (e.g. 7z/rar): show a static bar and a running count.
+		line = ui.BarEmpty.Render(strings.Repeat("░", 30)) + fmt.Sprintf("  %d %s", p.Done, items(p.Done))
+	}
 	cur := ui.Faint.Render(truncTail(p.Current, 44))
 
-	content := lipgloss.JoinVertical(lipgloss.Left, title, "", bar+"  "+stat, cur)
+	content := lipgloss.JoinVertical(lipgloss.Left, title, "", line, cur)
 	return ui.Dialog.Render(content)
 }
 
@@ -114,6 +130,13 @@ func items(n int) string {
 		return "item"
 	}
 	return "items"
+}
+
+func archives(n int) string {
+	if n == 1 {
+		return "archive"
+	}
+	return "archives"
 }
 
 // truncTail keeps the tail of a path, prefixing "…" when it's too long.

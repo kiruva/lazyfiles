@@ -77,6 +77,12 @@ func (m Model) onNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.beginOp(fileops.OpMove)
 	case key.Matches(msg, m.keys.Delete):
 		m.beginOp(fileops.OpDelete)
+	case key.Matches(msg, m.keys.Pack):
+		m.beginOp(fileops.OpPack)
+	case key.Matches(msg, m.keys.Unpack):
+		m.beginOp(fileops.OpUnpack)
+	case key.Matches(msg, m.keys.Unwrap):
+		m.beginOp(fileops.OpUnwrap)
 	}
 	return m, nil
 }
@@ -93,7 +99,8 @@ func (m Model) onConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // beginOp assembles a job from the active pane's selection and asks for
-// confirmation. Source = active pane, destination = the other pane.
+// confirmation. Source = active pane; destination = the other pane (except
+// delete, which has none, and unwrap, which extracts in place).
 func (m *Model) beginOp(op fileops.Op) {
 	src := &m.panes[m.active]
 	names := src.SelectedNames()
@@ -105,24 +112,80 @@ func (m *Model) beginOp(op fileops.Op) {
 	for _, n := range names {
 		srcs = append(srcs, filepath.Join(src.Path, n))
 	}
-	dest := m.panes[1-m.active].Path
+	other := m.panes[1-m.active].Path
 
 	m.willOverwrite = false
-	if op != fileops.OpDelete {
-		if dest == src.Path {
+	job := fileops.Job{Op: op, Srcs: srcs}
+
+	switch op {
+	case fileops.OpCopy, fileops.OpMove:
+		if other == src.Path {
 			m.errText = "source and destination are the same directory"
 			return
 		}
-		for _, n := range names {
-			if _, err := os.Stat(filepath.Join(dest, n)); err == nil {
-				m.willOverwrite = true
-				break
+		job.Dest = other
+		m.willOverwrite = anyExist(other, names)
+
+	case fileops.OpDelete:
+		// destructive; no destination
+
+	case fileops.OpUnpack, fileops.OpUnwrap:
+		if bad := firstNonArchive(names); bad != "" {
+			m.errText = "not a supported archive: " + bad
+			return
+		}
+		if op == fileops.OpUnpack {
+			if other == src.Path {
+				m.errText = "source and destination are the same directory"
+				return
 			}
+			job.Dest = other
+		} else {
+			job.Dest = src.Path // unwrap = extract in place
+		}
+
+	case fileops.OpPack:
+		if other == src.Path {
+			m.errText = "source and destination are the same directory"
+			return
+		}
+		job.Dest = other
+		job.Out = filepath.Join(other, packName(names))
+		if _, err := os.Stat(job.Out); err == nil {
+			m.willOverwrite = true
 		}
 	}
 
-	m.pending = fileops.Job{Op: op, Srcs: srcs, Dest: dest}
+	m.pending = job
 	m.mode = modeConfirm
+}
+
+// anyExist reports whether any of names already exists under dir.
+func anyExist(dir string, names []string) bool {
+	for _, n := range names {
+		if _, err := os.Stat(filepath.Join(dir, n)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// firstNonArchive returns the first name that isn't a supported archive, or "".
+func firstNonArchive(names []string) string {
+	for _, n := range names {
+		if !fileops.IsArchive(n) {
+			return n
+		}
+	}
+	return ""
+}
+
+// packName picks the output archive name for a pack job.
+func packName(names []string) string {
+	if len(names) == 1 {
+		return names[0] + ".tar.gz"
+	}
+	return "archive.tar.gz"
 }
 
 // startPending launches the confirmed job and enters progress mode.

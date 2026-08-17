@@ -19,6 +19,9 @@ const (
 	OpCopy Op = iota
 	OpMove
 	OpDelete
+	OpPack   // create an archive (Out) from Srcs
+	OpUnpack // extract Srcs (archives) into Dest (the other pane)
+	OpUnwrap // extract Srcs (archives) in place (Dest = source dir)
 )
 
 func (o Op) String() string {
@@ -29,6 +32,12 @@ func (o Op) String() string {
 		return "Move"
 	case OpDelete:
 		return "Delete"
+	case OpPack:
+		return "Pack"
+	case OpUnpack:
+		return "Unpack"
+	case OpUnwrap:
+		return "Unpack here"
 	default:
 		return "?"
 	}
@@ -43,17 +52,22 @@ func (o Op) Present() string {
 		return "Moving"
 	case OpDelete:
 		return "Deleting"
+	case OpPack:
+		return "Packing"
+	case OpUnpack, OpUnwrap:
+		return "Unpacking"
 	default:
 		return "Working"
 	}
 }
 
-// Job describes work to perform. Dest is the destination directory and is
-// ignored for OpDelete.
+// Job describes work to perform. Dest is the destination directory (ignored for
+// OpDelete). Out is the archive path to create (OpPack only).
 type Job struct {
 	Op   Op
-	Srcs []string // absolute source paths
+	Srcs []string // absolute source paths (archives for unpack/unwrap)
 	Dest string   // destination directory
+	Out  string   // output archive path (pack)
 }
 
 // Progress is emitted repeatedly as the job runs.
@@ -75,29 +89,48 @@ func Run(job Job) <-chan any {
 	go func() {
 		defer close(ch)
 
-		total := 0
-		for _, s := range job.Srcs {
-			total += countItems(s)
-		}
-		r := &reporter{ch: ch, total: total}
+		r := &reporter{ch: ch, total: computeTotal(job)}
 
 		var err error
-		for _, src := range job.Srcs {
-			switch job.Op {
-			case OpCopy:
-				err = copyPath(src, filepath.Join(job.Dest, filepath.Base(src)), r)
-			case OpMove:
-				err = movePath(src, filepath.Join(job.Dest, filepath.Base(src)), r)
-			case OpDelete:
-				err = deletePath(src, r)
-			}
-			if err != nil {
-				break
+		switch job.Op {
+		case OpPack:
+			err = pack(job, r)
+		case OpUnpack, OpUnwrap:
+			err = extractAll(job, r)
+		default:
+			for _, src := range job.Srcs {
+				switch job.Op {
+				case OpCopy:
+					err = copyPath(src, filepath.Join(job.Dest, filepath.Base(src)), r)
+				case OpMove:
+					err = movePath(src, filepath.Join(job.Dest, filepath.Base(src)), r)
+				case OpDelete:
+					err = deletePath(src, r)
+				}
+				if err != nil {
+					break
+				}
 			}
 		}
 		ch <- Result{Op: job.Op, Err: err}
 	}()
 	return ch
+}
+
+// computeTotal estimates the number of progress steps for the job's bar.
+func computeTotal(job Job) int {
+	total := 0
+	switch job.Op {
+	case OpUnpack, OpUnwrap:
+		for _, a := range job.Srcs {
+			total += countArchiveEntries(a)
+		}
+	default:
+		for _, s := range job.Srcs {
+			total += countItems(s)
+		}
+	}
+	return total
 }
 
 // reporter emits one Progress per processed item.

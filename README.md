@@ -5,8 +5,8 @@
 Built for the Linux community first, comfortable on macOS. Leans on what Total Commander is
 to Windows, reimagined for the terminal.
 
-> **Status:** early days — Phase 2 (dual-pane navigation + recursive copy/move/delete with
-> live progress). See [ROADMAP.md](ROADMAP.md).
+> **Status:** early days — Phase 3 (dual-pane navigation, recursive copy/move/delete, and
+> pack/unpack archives) with live progress. See [ROADMAP.md](ROADMAP.md).
 
 ## Run it
 
@@ -31,11 +31,17 @@ go run .
 | `F5` / `c`         | Copy selection → other pane     |
 | `F6` / `m`         | Move selection → other pane     |
 | `F8` / `Del` / `d` | Delete selection                |
+| `p`                | Pack selection → other pane     |
+| `u`                | Unpack archive → other pane     |
+| `U`                | Unpack archive in place         |
 | `y` / `n`          | Confirm / cancel a prompt       |
 | `q` / `Ctrl+C`     | Quit                            |
 
 Operations act on the marked selection (`Space`), or on the highlighted entry when nothing
-is marked. Copy/move always go from the **active** pane to the **other** pane.
+is marked. Copy/move/pack/unpack always go from the **active** pane to the **other** pane.
+
+Archive actions shell out to `tar`, `unzip`, `7z`, and `unrar` (only the tool for the format
+you touch is required). `pack` writes a `.tar.gz`.
 
 ## Built with
 

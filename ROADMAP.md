@@ -53,8 +53,9 @@ lazyfiles/
       all recursive, active pane → other pane, off the UI thread via a `fileops` engine that
       streams progress. Confirm dialog (with overwrite warning), live progress bar, and both
       panes auto-refresh on completion. ← **you are here**
-- [ ] **Phase 3 — Archives.** Unpack → other pane · Pack selection · Unwrap in place,
-      via the same progress plumbing (shelling out to `tar`/`zip`/`7z`).
+- [x] **Phase 3 — Archives.** `p` pack selection → other pane (`.tar.gz`) · `u` unpack →
+      other pane · `U` unpack in place, all shelling out to `tar`/`unzip`/`7z`/`unrar` through
+      the same progress plumbing (verbose output parsed for per-file progress). ← **you are here**
 - [ ] **Phase 4 — Public polish.** `?` help overlay, README + demo GIF, MIT license, CI
       (`vet`/`test`/`golangci-lint`), `go install` + Homebrew instructions. Tag `v0.1.0`.
 
@@ -77,7 +78,24 @@ lazyfiles/
 | `F5` / `c`         | Copy selection → other pane     |
 | `F6` / `m`         | Move selection → other pane     |
 | `F8` / `Del` / `d` | Delete selection                |
+| `p`                | Pack selection → other pane     |
+| `u`                | Unpack archive → other pane     |
+| `U`                | Unpack archive in place         |
 | `y` / `n`          | Confirm / cancel a prompt       |
 | `q` / `Ctrl+C`     | Quit                            |
 
 Operations act on the marked selection, or on the highlighted entry when nothing is marked.
+
+## External tools
+
+Archive actions shell out to standard CLIs, used only when you touch that format:
+
+| Format                         | Extract   | Create |
+| ------------------------------ | --------- | ------ |
+| `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`, `.tar.xz`, `.tar.zst` | `tar` | `tar` (pack target) |
+| `.zip`                         | `unzip`   | —      |
+| `.7z`                          | `7z`      | —      |
+| `.rar`                         | `unrar`   | —      |
+
+`pack` always writes `.tar.gz`. Extract entry-count progress uses `tar -t` / `zipinfo`; `7z`
+and `unrar` show an indeterminate bar.
