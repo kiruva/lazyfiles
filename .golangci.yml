@@ -11,6 +11,21 @@ linters:
     - unconvert
     - revive
 
+  settings:
+    errcheck:
+      # Deferred cleanup: nothing actionable on failure.
+      exclude-functions:
+        - (*os.File).Close
+        - (*io.PipeReader).Close
+        - os.RemoveAll
+    revive:
+      # internal/ has no external consumers, so godoc comments earn little.
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
