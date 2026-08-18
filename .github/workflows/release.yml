@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - "v*"
+  # Called by the Tag workflow right after it pushes a tag, since a tag pushed
+  # with GITHUB_TOKEN does not fire the trigger above.
+  workflow_call:
 
 permissions:
   contents: write

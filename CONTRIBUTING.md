@@ -51,6 +51,39 @@ CI runs the same checks on every push and pull request.
   to be and the app layer fills it in from a `tea.Cmd`.
 - Note user-facing changes in `CHANGELOG.md` under `## [Unreleased]`.
 
+## Commit messages
+
+Conventional-commit subjects — `feat:`, `fix:`, `chore:`, `docs:`, `ci:`, and a `!`
+suffix for a breaking change. They are not decoration: the release version is
+derived from them (see below).
+
+## Releasing
+
+No version number is stored in the repo. GitVersion derives it from the commits
+since the last tag, configured in [`GitVersion.yml`](GitVersion.yml):
+
+| Commit subject                        | Bump   | Example       |
+| ------------------------------------- | ------ | ------------- |
+| `feat!: …`, or `BREAKING CHANGE` body | major  | 0.3.1 → 1.0.0 |
+| `feat: …`                             | minor  | 0.3.1 → 0.4.0 |
+| `fix:`, `chore:`, `docs:`, anything   | patch  | 0.3.1 → 0.3.2 |
+| `+semver: major\|minor\|patch`        | forced | escape hatch  |
+
+The largest bump among the commits since the last tag wins.
+
+To cut a release:
+
+1. Run the **Tag** workflow from the Actions tab with **Dry run** ticked. The summary
+   reports the version it would use.
+2. Move the `## [Unreleased]` heading in `CHANGELOG.md` to that version with today's
+   date, and land it.
+3. Run **Tag** again without dry run. It pushes an annotated `vX.Y.Z` and calls the
+   **Release** workflow, which builds the binaries with GoReleaser and publishes them.
+
+A tag pushed by CI cannot start another workflow, which is why **Tag** calls
+**Release** directly instead of leaving it to the tag trigger. Pushing a tag by hand
+still triggers **Release** on its own.
+
 ## Reporting bugs
 
 Open an issue with your OS, terminal, lazyfiles version (`lazyfiles --version`),

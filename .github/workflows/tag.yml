@@ -1,0 +1,89 @@
+name: Tag
+
+# Releases are cut by hand from the Actions tab: GitVersion works out the next
+# version from the commits since the last tag (see GitVersion.yml), this workflow
+# pushes that tag, and the Release workflow builds it.
+#
+# Run it with "Dry run" ticked to see the version without tagging anything.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Compute the version without tagging or releasing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.gitversion.outputs.majorMinorPatch }}
+      tag: v${{ steps.gitversion.outputs.majorMinorPatch }}
+      exists: ${{ steps.existing.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # GitVersion reads the whole history and every tag
+
+      - uses: gittools/actions/gitversion/setup@v3
+        with:
+          versionSpec: "6.x"
+
+      # GitVersion.yml at the repo root is picked up automatically.
+      - id: gitversion
+        uses: gittools/actions/gitversion/execute@v3
+
+      - id: existing
+        name: Check whether the tag is already out
+        env:
+          TAG: v${{ steps.gitversion.outputs.majorMinorPatch }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "**$TAG already exists** — nothing new to release." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Next version: **$TAG**" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  tag:
+    name: Push tag
+    needs: version
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Refuse to move an existing tag
+        if: needs.version.outputs.exists == 'true'
+        run: |
+          echo "::error::${{ needs.version.outputs.tag }} already exists. Land a change, or bump explicitly with a +semver: marker."
+          exit 1
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Create and push the tag
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+
+  release:
+    name: Release
+    needs: tag
+    # A tag pushed with GITHUB_TOKEN does not start another workflow, so the
+    # release is called directly rather than waiting on the tag trigger.
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+    secrets: inherit

@@ -1,0 +1,18 @@
+# Version numbers are computed from git history by GitVersion, not stored here —
+# see the "Tag" workflow (.github/workflows/tag.yml). The commit subject decides
+# the bump, using the conventional-commit prefixes this repo already uses:
+#
+#     feat: ...                     minor   0.1.3 -> 0.2.0
+#     fix: / chore: / docs: ...     patch   0.1.3 -> 0.1.4
+#     feat!: ... / BREAKING CHANGE  major   0.1.3 -> 1.0.0
+#
+# GitVersion's own "+semver: major|minor|patch" markers still work as an escape
+# hatch for a commit whose prefix says the wrong thing. Anything that matches
+# nothing falls back to a patch bump.
+#
+# next-version is the floor: with no tags yet, the first release is 0.1.0.
+next-version: 0.1.0
+
+major-version-bump-message: '\A\w+(\([^)]*\))?!:|BREAKING[ -]CHANGE|\+semver:\s?(breaking|major)'
+minor-version-bump-message: '\Afeat(\([^)]*\))?:|\+semver:\s?(feature|minor)'
+patch-version-bump-message: '\A(fix|perf|refactor|revert|chore|docs|test|build|ci|style)(\([^)]*\))?:|\+semver:\s?(fix|patch)'
