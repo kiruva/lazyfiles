@@ -17,11 +17,14 @@ type mode int
 
 const (
 	modeNormal   mode = iota // navigating the panes
+	modeAddress              // typing a path into the active pane's address bar
 	modeConfirm              // awaiting y/n on a pending operation
 	modeProgress             // an operation is running
 	modeView                 // read-only text pager
 	modeEdit                 // nano-style text editor
 	modeHelp                 // keybinding overlay
+	modeTheme                // theme picker overlay
+	modeConn                 // ssh connection picker / form / password prompt
 )
 
 // editTarget records what an edit session is writing back to.
@@ -56,6 +59,13 @@ type Model struct {
 	edit       editTarget
 	editOrig   string // content as loaded, for dirty detection
 	editStatus string // transient footer message ("saved", etc.)
+
+	// theme picker state
+	themeCursor int    // highlighted row in the picker
+	themeOrig   string // theme to restore if the picker is cancelled
+
+	// ssh connection modal state
+	conn connState
 }
 
 // New constructs the app with both panes rooted at the current directory.

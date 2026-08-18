@@ -70,6 +70,9 @@ func (m *Model) CurrentMemberPath() (string, bool) {
 
 // displayPath is what the pane title shows.
 func (m Model) displayPath() string {
+	if !m.host.IsZero() {
+		return m.host.Display(m.Path)
+	}
 	if m.archive == "" {
 		return m.Path
 	}

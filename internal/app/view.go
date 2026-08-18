@@ -35,6 +35,10 @@ func (m Model) View() string {
 		return m.renderEditor()
 	case modeHelp:
 		return overlay(m.width, m.height, m.renderHelp())
+	case modeTheme:
+		return overlay(m.width, m.height, m.renderThemePicker())
+	case modeConn:
+		return overlay(m.width, m.height, m.renderConn())
 	default:
 		return base
 	}
@@ -62,6 +66,35 @@ func (m Model) renderHelp() string {
 	header := ui.DialogTitle.Render("lazyfiles — keys")
 	footer := ui.Faint.Render("any key to close")
 	content := lipgloss.JoinVertical(lipgloss.Left, header, "", cols, "", footer)
+	return ui.Dialog.Render(content)
+}
+
+// renderThemePicker lists the themes with a colour swatch each, above a sample
+// of the styles the highlighted theme produces.
+func (m Model) renderThemePicker() string {
+	const nameW = 12
+
+	lines := []string{ui.DialogTitle.Render("Theme"), ""}
+	for i, t := range ui.Themes() {
+		name := padRight(t.Name, nameW)
+		if i == m.themeCursor {
+			lines = append(lines, ui.Cursor.Render("▸ "+name)+" "+ui.Swatch(t))
+			continue
+		}
+		lines = append(lines, "  "+name+" "+ui.Swatch(t))
+	}
+
+	const sampleW = 24
+	sample := lipgloss.JoinVertical(lipgloss.Left,
+		ui.DirName.Render(padRight("  documents/", sampleW)),
+		ui.Selected.Render(padRight("● selected.txt", sampleW)),
+		ui.Cursor.Render(padRight("  cursor.go", sampleW-6)+" 1.2KB"),
+		ui.StatusBar.Render(padRight(" 12 items · sort:name", sampleW)),
+	)
+
+	footer := ui.Faint.Render("↑/↓ preview · enter apply · esc cancel")
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		lipgloss.JoinVertical(lipgloss.Left, lines...), "", sample, "", footer)
 	return ui.Dialog.Render(content)
 }
 
@@ -130,6 +163,24 @@ func (m Model) statusBar() string {
 	p := &m.panes[m.active]
 	left := p.Title()
 
+	if m.mode == modeAddress {
+		right := "enter go · tab complete · esc cancel"
+		pad := m.width - lipgloss.Width(left) - lipgloss.Width(right)
+		if pad < 1 {
+			pad = 1
+		}
+		return ui.StatusBar.Width(m.width).Render(left + strings.Repeat(" ", pad) + right)
+	}
+
+	if p.Loading() {
+		right := "connecting…"
+		pad := m.width - lipgloss.Width(left) - lipgloss.Width(right)
+		if pad < 1 {
+			pad = 1
+		}
+		return ui.StatusBar.Width(m.width).Render(left + strings.Repeat(" ", pad) + right)
+	}
+
 	right := fmt.Sprintf("%d items", len(p.Entries))
 	if n := p.SelectedCount(); n > 0 {
 		right += fmt.Sprintf(" · %d selected", n)
@@ -165,6 +216,29 @@ func (m Model) renderConfirm() string {
 	case fileops.OpUnwrap:
 		title = ui.DialogTitle.Render(fmt.Sprintf("Unpack %d %s here", n, archives(n)))
 		body = "→ " + truncTail(j.Dest, 44)
+	case fileops.OpDownload:
+		title = ui.DialogTitle.Render(fmt.Sprintf("Download %d %s", n, items(n)))
+		body = "from " + truncTail(j.Host.String(), 44) + "\n→ " + truncTail(j.Dest, 44)
+		if j.Move {
+			body += "\n" + ui.Danger.Render("The originals are removed from the host.")
+		}
+	case fileops.OpUpload:
+		title = ui.DialogTitle.Render(fmt.Sprintf("Upload %d %s", n, items(n)))
+		body = "→ " + truncTail(j.Host.Display(j.Dest), 44) +
+			"\n" + ui.Faint.Render("existing files there are replaced")
+		if j.Move {
+			body += "\n" + ui.Danger.Render("The local originals are removed.")
+		}
+	case fileops.OpRemoteCopy:
+		verb := "Copy"
+		if j.Move {
+			verb = "Move"
+		}
+		title = ui.DialogTitle.Render(fmt.Sprintf("%s %d %s on %s", verb, n, items(n), j.Host.String()))
+		body = "→ " + truncTail(j.Dest, 44)
+	case fileops.OpRemoteDelete:
+		title = ui.Danger.Render(fmt.Sprintf("Delete %d %s on %s?", n, items(n), j.Host.String()))
+		body = "This cannot be undone."
 	case fileops.OpAddToArchive:
 		verb := "Add"
 		if j.Move {

@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/kiruva/lazyfiles/internal/fileops"
+	"github.com/kiruva/lazyfiles/internal/remote"
 )
 
 // Update implements tea.Model.
@@ -26,7 +27,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, waitCmd(m.progressCh)
 
 	case fileops.Result:
-		return m.finishOp(msg), nil
+		return m.finishOp(msg)
+
+	case remoteListMsg:
+		return m.onRemoteList(msg)
+
+	case connResultMsg:
+		return m.onConnResult(msg)
 
 	case tea.KeyMsg:
 		return m.onKey(msg)
@@ -34,6 +41,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Non-key messages (e.g. cursor blink) are routed to the active component.
 	switch m.mode {
+	case modeAddress:
+		cmd := m.panes[m.active].UpdateAddr(msg)
+		return m, cmd
+	case modeConn:
+		cmd := m.updateConnInputs(msg)
+		return m, cmd
 	case modeEdit:
 		var cmd tea.Cmd
 		m.editor, cmd = m.editor.Update(msg)
@@ -49,6 +62,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // onKey dispatches a keypress to the handler for the current mode.
 func (m Model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.mode {
+	case modeAddress:
+		return m.onAddressKey(msg)
 	case modeConfirm:
 		return m.onConfirmKey(msg)
 	case modeProgress:
@@ -60,6 +75,10 @@ func (m Model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case modeHelp:
 		m.mode = modeNormal // any key dismisses the help overlay
 		return m, nil
+	case modeTheme:
+		return m.onThemeKey(msg)
+	case modeConn:
+		return m.onConnKey(msg)
 	default:
 		return m.onNormalKey(msg)
 	}
@@ -72,6 +91,7 @@ func (m Model) onNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case key.Matches(msg, m.keys.Quit):
+		remote.ForgetAll() // close sessions and drop passwords from memory
 		return m, tea.Quit
 	case key.Matches(msg, m.keys.Up):
 		p.MoveUp()
@@ -86,9 +106,21 @@ func (m Model) onNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Bottom):
 		p.Bottom()
 	case key.Matches(msg, m.keys.Enter):
+		if p.IsRemote() {
+			cmd := m.remoteEnter(m.active)
+			return m, cmd
+		}
 		m.enterOrOpen()
 	case key.Matches(msg, m.keys.Back):
+		if p.IsRemote() {
+			cmd := m.remoteAscend(m.active)
+			return m, cmd
+		}
 		p.Ascend()
+	case key.Matches(msg, m.keys.Address):
+		m.mode = modeAddress
+		cmd := p.BeginEditPath()
+		return m, cmd
 	case key.Matches(msg, m.keys.Select):
 		p.ToggleSelect()
 	case key.Matches(msg, m.keys.Hidden):
@@ -97,12 +129,19 @@ func (m Model) onNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		p.CycleSort()
 	case key.Matches(msg, m.keys.Switch):
 		m.active = 1 - m.active
+	case key.Matches(msg, m.keys.Theme):
+		m.openThemePicker()
+	case key.Matches(msg, m.keys.Connect):
+		cmd := m.openConnPicker()
+		return m, cmd
 	case key.Matches(msg, m.keys.Help):
 		m.mode = modeHelp
 	case key.Matches(msg, m.keys.View):
-		return m, m.openViewer()
+		cmd := m.openViewer()
+		return m, cmd
 	case key.Matches(msg, m.keys.Edit):
-		return m, m.openEditor()
+		cmd := m.openEditor()
+		return m, cmd
 	case key.Matches(msg, m.keys.Copy):
 		m.beginOp(fileops.OpCopy)
 	case key.Matches(msg, m.keys.Move):
@@ -119,11 +158,41 @@ func (m Model) onNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// onAddressKey drives the pane's address bar. Enter jumps, Esc restores the
+// previous location; a bad path keeps the bar open with the error in the
+// status line so it can be corrected.
+func (m Model) onAddressKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	p := &m.panes[m.active]
+	switch msg.String() {
+	case "enter":
+		// commitAddress sets the resulting mode itself: a local or same-host jump
+		// returns to normal, a new remote target opens the connection modal.
+		cmd, err := m.commitAddress()
+		if err != nil {
+			m.errText = err.Error()
+			return m, nil
+		}
+		m.errText = ""
+		return m, cmd
+	case "esc":
+		p.CancelEditPath()
+		m.mode = modeNormal
+		m.errText = ""
+		return m, nil
+	case "ctrl+c":
+		return m, tea.Quit
+	}
+	m.errText = ""
+	cmd := p.UpdateAddr(msg)
+	return m, cmd
+}
+
 // onConfirmKey handles the y/n prompt for a pending operation.
 func (m Model) onConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "enter":
-		return m, m.startPending()
+		cmd := m.startPending()
+		return m, cmd
 	case "n", "esc", "q":
 		m.mode = modeNormal
 	}
@@ -137,7 +206,8 @@ func (m Model) onViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeNormal
 		return m, nil
 	case "e":
-		return m, m.openEditor() // hand off to the editor on the same file
+		cmd := m.openEditor() // hand off to the editor on the same file
+		return m, cmd
 	}
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
@@ -184,6 +254,9 @@ func (m *Model) enterOrOpen() {
 // loadCurrent reads the highlighted file (real or in-archive) into memory.
 func (m *Model) loadCurrent() (data []byte, title string, err error) {
 	p := &m.panes[m.active]
+	if p.IsRemote() {
+		return nil, "", fmt.Errorf("view and edit are local-only — copy the file across first")
+	}
 	if p.InArchive() {
 		mem, ok := p.CurrentMemberPath()
 		if !ok {
@@ -285,6 +358,10 @@ func (m *Model) closeEditor() {
 // delete, which has none, and unwrap, which extracts in place).
 func (m *Model) beginOp(op fileops.Op) {
 	src := &m.panes[m.active]
+	if src.IsRemote() || m.panes[1-m.active].IsRemote() {
+		m.beginRemoteOp(op)
+		return
+	}
 	if src.InArchive() {
 		m.errText = "not available inside an archive — unpack it first"
 		return
@@ -401,18 +478,23 @@ func (m *Model) startPending() tea.Cmd {
 	return waitCmd(ch)
 }
 
-// finishOp refreshes both panes and surfaces any error.
-func (m Model) finishOp(res fileops.Result) Model {
+// finishOp refreshes both panes and surfaces any error. A remote pane refreshes
+// over the network, so this returns commands rather than doing it inline.
+func (m Model) finishOp(res fileops.Result) (tea.Model, tea.Cmd) {
 	m.mode = modeNormal
 	m.progressCh = nil
+
+	var cmds []tea.Cmd
 	for i := range m.panes {
 		m.panes[i].ClearSelection()
-		m.panes[i].Refresh()
+		if cmd := m.refreshPane(i); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 	if res.Err != nil {
 		m.errText = res.Op.String() + " failed: " + res.Err.Error()
 	}
-	return m
+	return m, tea.Batch(cmds...)
 }
 
 // resizePanes splits the terminal into two panes above the status bar and sizes

@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"github.com/kiruva/lazyfiles/internal/remote"
 )
 
 // Op identifies a filesystem operation.
@@ -23,6 +25,10 @@ const (
 	OpUnpack       // extract Srcs (archives) into Dest (the other pane)
 	OpUnwrap       // extract Srcs (archives) in place (Dest = source dir)
 	OpAddToArchive // add real files (Srcs) into archive Dest at VDir
+	OpDownload     // copy remote Srcs into local dir Dest (over ssh)
+	OpUpload       // copy local Srcs into remote dir Dest (over ssh)
+	OpRemoteCopy   // copy/move Srcs to Dest within one host
+	OpRemoteDelete // remove remote Srcs
 )
 
 func (o Op) String() string {
@@ -41,6 +47,14 @@ func (o Op) String() string {
 		return "Unpack here"
 	case OpAddToArchive:
 		return "Add to archive"
+	case OpDownload:
+		return "Download"
+	case OpUpload:
+		return "Upload"
+	case OpRemoteCopy:
+		return "Copy"
+	case OpRemoteDelete:
+		return "Delete"
 	default:
 		return "?"
 	}
@@ -61,6 +75,14 @@ func (o Op) Present() string {
 		return "Unpacking"
 	case OpAddToArchive:
 		return "Adding to archive"
+	case OpDownload:
+		return "Downloading"
+	case OpUpload:
+		return "Uploading"
+	case OpRemoteCopy:
+		return "Copying"
+	case OpRemoteDelete:
+		return "Deleting"
 	default:
 		return "Working"
 	}
@@ -74,7 +96,10 @@ type Job struct {
 	Dest string   // destination directory, or archive path (add-to-archive)
 	Out  string   // output archive path (pack)
 	VDir string   // virtual directory within the archive (add-to-archive)
-	Move bool     // add-to-archive: delete sources after adding
+	Move bool     // delete the sources once the transfer succeeded
+
+	// Host is the ssh destination for the remote ops; zero for local work.
+	Host remote.Host
 }
 
 // Progress is emitted repeatedly as the job runs.
@@ -97,6 +122,11 @@ func Run(job Job) <-chan any {
 		defer close(ch)
 
 		r := &reporter{ch: ch, total: computeTotal(job)}
+
+		if isRemoteOp(job.Op) {
+			ch <- Result{Op: job.Op, Err: runRemote(job, r)}
+			return
+		}
 
 		var err error
 		switch job.Op {
@@ -130,6 +160,14 @@ func Run(job Job) <-chan any {
 func computeTotal(job Job) int {
 	total := 0
 	switch job.Op {
+	case OpDownload, OpRemoteCopy, OpRemoteDelete:
+		// Counting remote items would cost another round trip; the bar runs
+		// indeterminate instead.
+		return 0
+	case OpUpload:
+		for _, s := range job.Srcs {
+			total += countItems(s)
+		}
 	case OpUnpack, OpUnwrap:
 		for _, a := range job.Srcs {
 			total += countArchiveEntries(a)

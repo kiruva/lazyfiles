@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/kiruva/lazyfiles/internal/fileops"
+	"github.com/kiruva/lazyfiles/internal/remote"
 	"github.com/kiruva/lazyfiles/internal/ui"
 )
 
@@ -24,15 +26,29 @@ type Model struct {
 	showHidden bool
 	selected   map[string]bool // keys are entry names in the current dir
 
+	// address bar (top line): mirrors the location, editable for direct jumps
+	addr        textinput.Model
+	editingAddr bool
+
 	// archive browsing (virtual filesystem inside a packed file)
 	archive string           // "" = real filesystem; otherwise the archive's real path
 	vpath   string           // current virtual directory within the archive ("" = root)
 	members []fileops.Member // cached full member listing
+
+	// remote browsing over ssh (zero host = local)
+	host      remote.Host
+	loading   bool    // a remote listing is in flight
+	remoteRaw []Entry // last listing, before hidden-file filtering and sorting
 }
 
 // New builds a pane rooted at path and loads its contents.
 func New(path string) Model {
-	m := Model{Path: path, selected: map[string]bool{}}
+	ti := textinput.New()
+	ti.Prompt = ""
+	ti.CharLimit = 0
+	ti.ShowSuggestions = true
+
+	m := Model{Path: path, selected: map[string]bool{}, addr: ti}
 	m.reload()
 	return m
 }
@@ -40,9 +56,21 @@ func New(path string) Model {
 // SetSize records the pane's outer dimensions (used for paging math and render).
 func (m *Model) SetSize(w, h int) {
 	m.width, m.height = w, h
+	m.addr.Width = max(w-3, 1) // borders plus room for the cursor
 }
 
 func (m *Model) reload() {
+	m.reloadEntries()
+	m.syncAddr()
+}
+
+func (m *Model) reloadEntries() {
+	if m.IsRemote() {
+		m.Entries = m.remoteEntries()
+		m.clampCursor()
+		return
+	}
+
 	if m.archive != "" {
 		entries := virtualEntries(m.members, m.vpath)
 		if !m.showHidden {
@@ -125,6 +153,9 @@ func (m *Model) Bottom()   { m.Cursor = max(len(m.Entries)-1, 0) }
 // Enter descends into the highlighted directory (or ".." to the parent). Inside
 // an archive it walks the virtual tree and exits the archive at the root.
 func (m *Model) Enter() {
+	if m.IsRemote() {
+		return // remote navigation needs a round trip; the app layer drives it
+	}
 	cur, ok := m.Current()
 	if !ok || !cur.IsDir {
 		return
@@ -143,6 +174,9 @@ func (m *Model) Enter() {
 
 // Ascend moves to the parent directory (or up/out of the archive).
 func (m *Model) Ascend() {
+	if m.IsRemote() {
+		return // see Enter
+	}
 	if m.archive != "" {
 		m.navigateArchive("..")
 		return
@@ -241,7 +275,7 @@ func (m Model) View(active bool) string {
 	innerW := max(m.width-2, 1)
 	innerH := max(m.height-2, 1)
 
-	title := ui.Title.Render(truncate(m.displayPath(), innerW))
+	title := m.addrView(innerW, active)
 	rows := max(innerH-1, 1)
 
 	start := 0
@@ -252,6 +286,10 @@ func (m Model) View(active bool) string {
 
 	var b strings.Builder
 	b.WriteString(title)
+	if m.loading && len(m.Entries) == 0 {
+		b.WriteString("\n" + ui.Faint.Render("  connecting…"))
+		return border.Width(innerW).Height(innerH).Render(b.String())
+	}
 	for i := start; i < end; i++ {
 		e := m.Entries[i]
 		b.WriteByte('\n')

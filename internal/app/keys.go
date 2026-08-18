@@ -12,6 +12,7 @@ type keyMap struct {
 	Bottom   key.Binding
 	Enter    key.Binding
 	Back     key.Binding
+	Address  key.Binding
 	Switch   key.Binding
 	Select   key.Binding
 	Hidden   key.Binding
@@ -24,6 +25,8 @@ type keyMap struct {
 	Unwrap   key.Binding
 	View     key.Binding
 	Edit     key.Binding
+	Theme    key.Binding
+	Connect  key.Binding
 	Help     key.Binding
 	Quit     key.Binding
 }
@@ -61,6 +64,10 @@ func defaultKeys() keyMap {
 		Back: key.NewBinding(
 			key.WithKeys("backspace", "h", "left"),
 			key.WithHelp("h", "up dir"),
+		),
+		Address: key.NewBinding(
+			key.WithKeys("ctrl+l", ":"),
+			key.WithHelp("ctrl+l/:", "edit path"),
 		),
 		Switch: key.NewBinding(
 			key.WithKeys("tab"),
@@ -110,6 +117,14 @@ func defaultKeys() keyMap {
 			key.WithKeys("e"),
 			key.WithHelp("e", "edit"),
 		),
+		Theme: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "theme"),
+		),
+		Connect: key.NewBinding(
+			key.WithKeys("S", "ctrl+s"),
+			key.WithHelp("S", "ssh connect"),
+		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),
 			key.WithHelp("?", "help"),
@@ -130,10 +145,11 @@ type helpGroup struct {
 // groups organizes the bindings for the help overlay.
 func (k keyMap) groups() []helpGroup {
 	return []helpGroup{
-		{"Navigate", []key.Binding{k.Up, k.Down, k.PageDown, k.Top, k.Bottom, k.Enter, k.Back, k.Switch}},
+		{"Navigate", []key.Binding{k.Up, k.Down, k.PageDown, k.Top, k.Bottom, k.Enter, k.Back, k.Address, k.Switch}},
 		{"Select & view", []key.Binding{k.Select, k.Sort, k.Hidden, k.View, k.Edit}},
 		{"Operations", []key.Binding{k.Copy, k.Move, k.Delete}},
 		{"Archives", []key.Binding{k.Pack, k.Unpack, k.Unwrap}},
-		{"App", []key.Binding{k.Help, k.Quit}},
+		{"Remote", []key.Binding{k.Connect}},
+		{"App", []key.Binding{k.Theme, k.Help, k.Quit}},
 	}
 }

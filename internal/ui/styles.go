@@ -3,93 +3,151 @@ package ui
 
 import "github.com/charmbracelet/lipgloss"
 
-// Palette
-var (
-	accent   = lipgloss.Color("39")  // bright blue — active pane / cursor
-	dim      = lipgloss.Color("240") // grey — inactive borders
-	fgBright = lipgloss.Color("231") // near-white text
-	barBg    = lipgloss.Color("237") // status bar background
-	danger   = lipgloss.Color("196") // red — destructive actions / errors
-)
-
+// Styles are package-level so render code can use them inline. Apply rebuilds
+// every one of them from a Theme, which is how theme switching works at
+// runtime — the next render simply reads the new values.
 var (
 	// ActiveBorder wraps the pane that currently has focus.
-	ActiveBorder = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(accent)
+	ActiveBorder lipgloss.Style
 
 	// InactiveBorder wraps the pane without focus.
-	InactiveBorder = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(dim)
+	InactiveBorder lipgloss.Style
 
 	// Cursor highlights the selected row in the active pane.
-	Cursor = lipgloss.NewStyle().
-		Background(accent).
-		Foreground(fgBright).
-		Bold(true)
+	Cursor lipgloss.Style
 
 	// CursorInactive highlights the selected row in the unfocused pane.
-	CursorInactive = lipgloss.NewStyle().
-			Background(dim).
-			Foreground(fgBright)
+	CursorInactive lipgloss.Style
 
 	// DirName styles directory entries.
-	DirName = lipgloss.NewStyle().
-		Foreground(accent).
-		Bold(true)
+	DirName lipgloss.Style
 
 	// Selected styles entries the user has marked with Space.
-	Selected = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("220")). // amber
-			Bold(true)
+	Selected lipgloss.Style
 
 	// Title styles the path shown at the top of each pane.
-	Title = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("252")).
-		Bold(true)
+	Title lipgloss.Style
+
+	// AddrEdit styles the pane's address bar while it is being edited.
+	AddrEdit lipgloss.Style
 
 	// StatusBar styles the bottom bar.
-	StatusBar = lipgloss.NewStyle().
-			Foreground(fgBright).
-			Background(barBg)
+	StatusBar lipgloss.Style
 
 	// ErrorBar styles the bottom bar when an operation failed.
-	ErrorBar = lipgloss.NewStyle().
-			Foreground(fgBright).
-			Background(danger).
-			Bold(true)
+	ErrorBar lipgloss.Style
 
 	// Dialog is the bordered box for confirm/progress modals.
-	Dialog = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(accent).
-		Padding(1, 3)
+	Dialog lipgloss.Style
 
 	// DialogTitle styles the modal heading.
-	DialogTitle = lipgloss.NewStyle().
-			Foreground(accent).
-			Bold(true)
+	DialogTitle lipgloss.Style
 
 	// DialogHint styles the [y]/[n] key chips in a modal.
-	DialogHint = lipgloss.NewStyle().
-			Foreground(fgBright).
-			Background(accent).
-			Bold(true).
-			Padding(0, 1)
+	DialogHint lipgloss.Style
 
 	// Danger styles destructive/overwrite warnings.
-	Danger = lipgloss.NewStyle().
-		Foreground(danger).
-		Bold(true)
+	Danger lipgloss.Style
 
 	// Faint styles secondary text (e.g. the current file in progress).
-	Faint = lipgloss.NewStyle().Foreground(dim)
+	Faint lipgloss.Style
 
 	// HelpKey styles the key column in the help overlay.
-	HelpKey = lipgloss.NewStyle().Foreground(accent).Bold(true)
+	HelpKey lipgloss.Style
 
 	// BarFilled / BarEmpty render the progress bar.
-	BarFilled = lipgloss.NewStyle().Foreground(accent)
-	BarEmpty  = lipgloss.NewStyle().Foreground(dim)
+	BarFilled lipgloss.Style
+	BarEmpty  lipgloss.Style
 )
+
+// current is the theme the styles were last built from.
+var current = themes[0]
+
+func init() { Apply(current) }
+
+// Current returns the active theme.
+func Current() Theme { return current }
+
+// Apply rebuilds every style from t. Safe to call at any time; the change is
+// visible on the next render.
+func Apply(t Theme) {
+	current = t
+
+	ActiveBorder = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(t.Accent)
+
+	InactiveBorder = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(t.Dim)
+
+	Cursor = lipgloss.NewStyle().
+		Background(t.Accent).
+		Foreground(t.CursorFg).
+		Bold(true)
+
+	CursorInactive = lipgloss.NewStyle().
+		Background(t.Dim).
+		Foreground(t.Fg)
+
+	DirName = lipgloss.NewStyle().
+		Foreground(t.Accent).
+		Bold(true)
+
+	Selected = lipgloss.NewStyle().
+		Foreground(t.Mark).
+		Bold(true)
+
+	Title = lipgloss.NewStyle().
+		Foreground(t.Title).
+		Bold(true)
+
+	AddrEdit = lipgloss.NewStyle().
+		Foreground(t.Fg).
+		Background(t.Bar).
+		Bold(true)
+
+	StatusBar = lipgloss.NewStyle().
+		Foreground(t.Fg).
+		Background(t.Bar)
+
+	ErrorBar = lipgloss.NewStyle().
+		Foreground(t.Fg).
+		Background(t.Danger).
+		Bold(true)
+
+	Dialog = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(t.Accent).
+		Padding(1, 3)
+
+	DialogTitle = lipgloss.NewStyle().
+		Foreground(t.Accent).
+		Bold(true)
+
+	DialogHint = lipgloss.NewStyle().
+		Foreground(t.CursorFg).
+		Background(t.Accent).
+		Bold(true).
+		Padding(0, 1)
+
+	Danger = lipgloss.NewStyle().
+		Foreground(t.Danger).
+		Bold(true)
+
+	Faint = lipgloss.NewStyle().Foreground(t.Dim)
+
+	HelpKey = lipgloss.NewStyle().Foreground(t.Accent).Bold(true)
+
+	BarFilled = lipgloss.NewStyle().Foreground(t.Accent)
+	BarEmpty = lipgloss.NewStyle().Foreground(t.Dim)
+}
+
+// Swatch renders a small colour sample of a theme, for the theme picker.
+func Swatch(t Theme) string {
+	block := "██"
+	return lipgloss.NewStyle().Foreground(t.Accent).Render(block) +
+		lipgloss.NewStyle().Foreground(t.Mark).Render(block) +
+		lipgloss.NewStyle().Foreground(t.Danger).Render(block) +
+		lipgloss.NewStyle().Foreground(t.Dim).Render(block)
+}
