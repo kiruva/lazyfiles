@@ -25,6 +25,7 @@ const (
 	modeHelp                 // keybinding overlay
 	modeTheme                // theme picker overlay
 	modeConn                 // ssh connection picker / form / password prompt
+	modeCreate               // naming a new file or directory
 )
 
 // editTarget records what an edit session is writing back to.
@@ -66,6 +67,9 @@ type Model struct {
 
 	// ssh connection modal state
 	conn connState
+
+	// new file / new folder prompt state
+	create createState
 }
 
 // New constructs the app with both panes rooted at the current directory.

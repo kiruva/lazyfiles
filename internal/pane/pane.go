@@ -36,9 +36,10 @@ type Model struct {
 	members []fileops.Member // cached full member listing
 
 	// remote browsing over ssh (zero host = local)
-	host      remote.Host
-	loading   bool    // a remote listing is in flight
-	remoteRaw []Entry // last listing, before hidden-file filtering and sorting
+	host         remote.Host
+	loading      bool    // a remote listing is in flight
+	remoteRaw    []Entry // last listing, before hidden-file filtering and sorting
+	focusPending string  // entry to highlight once the next listing lands
 }
 
 // New builds a pane rooted at path and loads its contents.
@@ -127,6 +128,17 @@ func (m *Model) Current() (Entry, bool) {
 		return Entry{}, false
 	}
 	return m.Entries[m.Cursor], true
+}
+
+// Focus moves the cursor to the named entry when it is visible; entries that are
+// filtered out (a dotfile with hidden files off) leave the cursor alone.
+func (m *Model) Focus(name string) {
+	for i, e := range m.Entries {
+		if e.Name == name {
+			m.Cursor = i
+			return
+		}
+	}
 }
 
 // Cursor movement ------------------------------------------------------------

@@ -35,6 +35,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case connResultMsg:
 		return m.onConnResult(msg)
 
+	case createdMsg:
+		return m.onCreated(msg)
+
 	case tea.KeyMsg:
 		return m.onKey(msg)
 	}
@@ -46,6 +49,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case modeConn:
 		cmd := m.updateConnInputs(msg)
+		return m, cmd
+	case modeCreate:
+		var cmd tea.Cmd
+		m.create.input, cmd = m.create.input.Update(msg)
 		return m, cmd
 	case modeEdit:
 		var cmd tea.Cmd
@@ -79,6 +86,8 @@ func (m Model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.onThemeKey(msg)
 	case modeConn:
 		return m.onConnKey(msg)
+	case modeCreate:
+		return m.onCreateKey(msg)
 	default:
 		return m.onNormalKey(msg)
 	}
@@ -141,6 +150,12 @@ func (m Model) onNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case key.Matches(msg, m.keys.Edit):
 		cmd := m.openEditor()
+		return m, cmd
+	case key.Matches(msg, m.keys.NewFile):
+		cmd := m.openCreate(false)
+		return m, cmd
+	case key.Matches(msg, m.keys.NewDir):
+		cmd := m.openCreate(true)
 		return m, cmd
 	case key.Matches(msg, m.keys.Copy):
 		m.beginOp(fileops.OpCopy)

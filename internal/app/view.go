@@ -39,6 +39,8 @@ func (m Model) View() string {
 		return overlay(m.width, m.height, m.renderThemePicker())
 	case modeConn:
 		return overlay(m.width, m.height, m.renderConn())
+	case modeCreate:
+		return overlay(m.width, m.height, m.renderCreate())
 	default:
 		return base
 	}

@@ -26,6 +26,7 @@ func (m *Model) OpenRemote(h remote.Host, path string) {
 	m.archive, m.vpath, m.members = "", "", nil
 	m.Entries = nil
 	m.remoteRaw = nil
+	m.focusPending = ""
 	m.Cursor = 0
 	m.selected = map[string]bool{}
 	m.loading = true
@@ -41,6 +42,10 @@ func (m *Model) GoRemote(path string) string {
 	m.syncAddr()
 	return target
 }
+
+// FocusAfterLoad remembers an entry to highlight once the next listing arrives —
+// a remote refresh is asynchronous, so the caller cannot move the cursor itself.
+func (m *Model) FocusAfterLoad(name string) { m.focusPending = name }
 
 // SetRemoteListing installs a completed listing. Stale replies — a listing for
 // a directory the pane has already navigated away from — are ignored.
@@ -64,6 +69,10 @@ func (m *Model) SetRemoteListing(requested string, l remote.Listing) bool {
 		})
 	}
 	m.reload()
+	if m.focusPending != "" {
+		m.Focus(m.focusPending)
+		m.focusPending = ""
+	}
 	return true
 }
 
@@ -85,6 +94,7 @@ func (m *Model) LeaveRemote(path string) {
 	m.host = remote.Host{}
 	m.loading = false
 	m.remoteRaw = nil
+	m.focusPending = ""
 	m.Path = path
 	m.enterDir()
 }

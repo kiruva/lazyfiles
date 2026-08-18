@@ -1,0 +1,80 @@
+# Changelog
+
+All notable changes to lazyfiles are documented in this file.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+First public release is being prepared; everything below ships in it.
+
+### Added
+
+**Navigation**
+
+- Dual-pane layout with an active-pane border, `Tab` to switch, and `Enter`/`h` to walk the
+  tree. Copy, move, pack, and unpack always run from the active pane to the other one.
+- Cursor movement with `j`/`k` and the arrow keys, paging with `PgUp`/`PgDn`, and `g`/`G` to
+  jump to the top or bottom of a listing.
+- Multi-selection with `Space`, sort modes (name, size, time) on `s`, and a hidden-file
+  toggle on `.`.
+- A status bar reporting the location, item count, selection count, sort mode, and hidden-file
+  state.
+- An address bar on each pane's top line: `Ctrl+L` (or `:`) turns it into an input accepting
+  absolute, relative, `~`-rooted, and `$VAR`-containing paths, with `Tab` completion.
+
+**File operations**
+
+- Recursive copy (`F5`/`c`), move (`F6`/`m`), and delete (`F8`/`Del`/`d`), each with a
+  confirmation dialog that warns before overwriting and a live progress bar.
+- Every operation runs off the UI thread and streams progress back as messages, so the
+  interface stays responsive during large transfers. Both panes refresh on completion.
+- New file (`n`) and new folder (`N`/`F7`) prompts, working on local and remote panes. Names
+  may contain separators — missing parent directories are created — while absolute paths and
+  names that already exist are refused rather than overwritten.
+
+**Archives**
+
+- Pack a selection to `.tar.gz` (`p`), unpack into the other pane (`u`), and unpack in place
+  (`U`), all shelling out to `tar`, `unzip`, `7z`, or `unrar` — only the tool for the format
+  in use is required.
+- Browse an archive as a virtual directory tree with `Enter`, including per-member sizes.
+- Copy or move real files into an open archive with `F5`/`c` or `F6`/`m`, adding them as
+  members at the current virtual directory.
+
+**Viewing and editing**
+
+- A read-only pager (`v`) and a nano-style editor (`e`) with `Ctrl+S` to save, `Ctrl+Q` to
+  discard, and an unsaved-changes guard on `Esc`. Binary files are refused.
+- Both work on archive members: an edited member is written back with a targeted update for
+  zip and uncompressed tar, and a transparent repack for compressed tar.
+
+**Remote browsing over ssh**
+
+- A connection modal (`S`) managing saved connections — name, host, user, port, starting
+  path, and optional key file. Passwords are never written to disk.
+- Authentication via ssh-agent, `~/.ssh/id_*`, or an interactive password prompt, honouring
+  `~/.ssh/config` aliases including `ProxyJump`. Unrecognised host keys are shown for
+  confirmation before being added to `known_hosts`.
+- Remote targets in the address bar (`ssh://user@host/path` or `host:/path`), with `local:`
+  as the way back to this machine.
+- Transfers in both directions and within a single host: download, upload, server-side
+  copy/move, and remote delete, streamed over one ssh session with per-file progress.
+
+**Appearance and CLI**
+
+- Eight built-in themes with a live-preview picker (`t`), selectable at startup with
+  `--theme` and listable with `--themes`.
+- A keybinding overlay (`?`) generated from the keymap, and a `--version` flag.
+
+### Documentation
+
+- README covering installation, keybindings, the address bar, archives, ssh, and themes.
+- `CONTRIBUTING.md`, MIT license, and a `demo.tape` script for regenerating the demo GIF.
+
+### Infrastructure
+
+- GitHub Actions CI running `go vet`, `go build`, `go test`, and golangci-lint.
+- GoReleaser workflow publishing Linux and macOS binaries (amd64 and arm64) per tag.
+- A `Makefile` wrapping the common build, test, lint, and run targets.

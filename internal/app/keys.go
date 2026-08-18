@@ -17,6 +17,8 @@ type keyMap struct {
 	Select   key.Binding
 	Hidden   key.Binding
 	Sort     key.Binding
+	NewFile  key.Binding
+	NewDir   key.Binding
 	Copy     key.Binding
 	Move     key.Binding
 	Delete   key.Binding
@@ -85,6 +87,14 @@ func defaultKeys() keyMap {
 			key.WithKeys("s"),
 			key.WithHelp("s", "sort"),
 		),
+		NewFile: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "new file"),
+		),
+		NewDir: key.NewBinding(
+			key.WithKeys("f7", "N"),
+			key.WithHelp("N/F7", "new folder"),
+		),
 		Copy: key.NewBinding(
 			key.WithKeys("f5", "c"),
 			key.WithHelp("F5/c", "copy"),
@@ -147,6 +157,7 @@ func (k keyMap) groups() []helpGroup {
 	return []helpGroup{
 		{"Navigate", []key.Binding{k.Up, k.Down, k.PageDown, k.Top, k.Bottom, k.Enter, k.Back, k.Address, k.Switch}},
 		{"Select & view", []key.Binding{k.Select, k.Sort, k.Hidden, k.View, k.Edit}},
+		{"Create", []key.Binding{k.NewFile, k.NewDir}},
 		{"Operations", []key.Binding{k.Copy, k.Move, k.Delete}},
 		{"Archives", []key.Binding{k.Pack, k.Unpack, k.Unwrap}},
 		{"Remote", []key.Binding{k.Connect}},

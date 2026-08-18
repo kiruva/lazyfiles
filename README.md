@@ -9,16 +9,28 @@
 Built for the Linux community first, comfortable on macOS. Leans on what Total Commander is
 to Windows, reimagined for the terminal.
 
-> **Status:** early days — dual-pane navigation, recursive copy/move/delete, pack/unpack
-> archives, view/edit text (including files **inside** archives), and browsing/transferring
-> over ssh. See [ROADMAP.md](ROADMAP.md).
-
 ![demo](demo.gif)
+
+## What it does
+
+- **Dual panes.** The active pane is the source, the other one is the destination — `Tab` is
+  the whole mental model.
+- **File operations.** Create, copy, move, and delete, all recursive, each confirmed first and
+  run off the UI thread with a live progress bar.
+- **Archives.** Pack and unpack `tar`/`zip`/`7z`/`rar`, browse an archive as though it were a
+  directory, and add files to one without unpacking it.
+- **Text viewer and editor.** Read or edit a file in place — including a file **inside** an
+  archive.
+- **ssh.** Browse a remote host in either pane and transfer in either direction, with
+  `~/.ssh/config` aliases, agent and key authentication, and host-key verification.
+- **Themes.** Eight built-in colour schemes with a live-preview picker.
+
+> **Status:** pre-1.0 and under active development. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
 ```sh
-# With Go installed (1.24+):
+# With Go 1.26 or newer installed:
 go install github.com/kiruva/lazyfiles@latest
 
 # Or build from source:
@@ -29,6 +41,10 @@ make build      # produces ./lazyfiles
 
 Pre-built binaries for Linux and macOS (amd64/arm64) are attached to each
 [release](https://github.com/kiruva/lazyfiles/releases).
+
+Browsing, copying, and editing need nothing but the binary. Archive actions call the system
+tool for the format you touch (`tar`, `unzip`, `7z`, `unrar`), and ssh transfers need `tar`
+and a POSIX shell on the far side.
 
 ## Run it
 
@@ -41,35 +57,39 @@ lazyfiles --version
 
 ## Keys
 
-| Key                | Action                          |
-| ------------------ | ------------------------------- |
-| `j` / `↓`          | Move cursor down                |
-| `k` / `↑`          | Move cursor up                  |
-| `PgDn` / `PgUp`    | Page down / up                  |
-| `g` / `G`          | Jump to top / bottom            |
-| `l` / `enter`      | Open directory                  |
-| `h` / `⌫`          | Go to parent dir                |
-| `Ctrl+L` / `:`     | Edit address bar (jump to path) |
-| `Tab`              | Switch active pane              |
-| `Space`            | Select / deselect entry         |
-| `s`                | Cycle sort (name → size → time) |
-| `.`                | Toggle hidden files             |
-| `F5` / `c`         | Copy selection → other pane     |
-| `F6` / `m`         | Move selection → other pane     |
-| `F8` / `Del` / `d` | Delete selection                |
-| `p`                | Pack selection → other pane     |
-| `u`                | Unpack archive → other pane     |
-| `U`                | Unpack archive in place         |
-| `Enter`            | Open dir / browse into archive  |
-| `v`                | View file (read-only)           |
-| `e`                | Edit file (nano-style)          |
-| `S`                | ssh connections                 |
-| `t`                | Theme picker                    |
-| `?`                | Show all keybindings            |
-| `y` / `n`          | Confirm / cancel a prompt       |
-| `q` / `Ctrl+C`     | Quit                            |
+| Key                 | Action                          |
+| ------------------- | ------------------------------- |
+| `j` / `↓`           | Move cursor down                |
+| `k` / `↑`           | Move cursor up                  |
+| `Ctrl+D` / `Ctrl+U` | Page down / up                  |
+| `PgDn` / `PgUp`     | Page down / up                  |
+| `g` / `Home`        | Jump to top                     |
+| `G` / `End`         | Jump to bottom                  |
+| `Enter` / `l` / `→` | Open directory or archive       |
+| `h` / `←` / `⌫`     | Go to parent dir                |
+| `Ctrl+L` / `:`      | Edit address bar (jump to path) |
+| `Tab`               | Switch active pane              |
+| `Space`             | Select / deselect entry         |
+| `s`                 | Cycle sort (name → size → time) |
+| `.`                 | Toggle hidden files             |
+| `n`                 | New file in active pane         |
+| `N` / `F7`          | New folder in active pane       |
+| `F5` / `c`          | Copy selection → other pane     |
+| `F6` / `m`          | Move selection → other pane     |
+| `F8` / `Del` / `d`  | Delete selection                |
+| `p`                 | Pack selection → other pane     |
+| `u`                 | Unpack archive → other pane     |
+| `U`                 | Unpack archive in place         |
+| `v`                 | View file (read-only)           |
+| `e`                 | Edit file (nano-style)          |
+| `S` / `Ctrl+S`      | ssh connections                 |
+| `t`                 | Theme picker                    |
+| `?`                 | Show all keybindings            |
+| `y` / `n`           | Confirm / cancel a prompt       |
+| `q` / `Ctrl+C`      | Quit                            |
 
-Press `?` any time for the full keybinding overlay.
+Press `?` any time for the full keybinding overlay, grouped by what each key does. Directories
+always sort before files; `s` orders the entries within each group.
 
 ## Address bar
 
@@ -78,14 +98,59 @@ Each pane's top line is its address bar. It follows the cursor as you walk the t
 `Esc` cancels, `Tab` completes, `↑`/`↓` cycle completions. Paths may be absolute, relative
 to the current directory, `~`-rooted, or contain `$VARS`. Typing the path of a browsable
 archive opens it as a virtual tree, and an `ssh://` or `host:/path` target starts the ssh
-connection flow for that pane (see below); anything that isn't a directory leaves the bar
-open with the reason in the status line.
+connection flow for that pane (see [Over ssh](#over-ssh)); anything that isn't a directory
+leaves the bar open with the reason in the status line.
 
-Operations act on the marked selection (`Space`), or on the highlighted entry when nothing
-is marked. Copy/move/pack/unpack always go from the **active** pane to the **other** pane.
+## Creating
 
-Archive actions shell out to `tar`, `unzip`, `7z`, and `unrar` (only the tool for the format
-you touch is required). `pack` writes a `.tar.gz`.
+`n` names a new file and `N` (or `F7`) a new folder, in the active pane's current directory —
+local or remote. The name may contain separators, so `src/main.go` creates the missing
+directories on the way. Absolute paths are refused (use the address bar to move there), and so
+is a name that already exists: creating never overwrites.
+
+## Operations
+
+Copy (`F5`/`c`), move (`F6`/`m`), and delete (`F8`/`Del`/`d`) act on the entries marked with
+`Space`, or on the highlighted entry when nothing is marked. Copy, move, pack, and unpack all
+go from the **active** pane to the **other** pane, so direction is whatever `Tab` says it is.
+
+Every operation is recursive, asks for confirmation first — warning when it would overwrite
+something — and runs off the UI thread, streaming progress into a bar while the interface stays
+responsive. Both panes refresh when it finishes. **Delete is permanent**: no trash, no undo.
+
+## Archives
+
+`p` packs the selection into a `.tar.gz` in the other pane, `u` unpacks an archive into the
+other pane, and `U` unpacks it in place. Archive actions shell out to standard CLIs, and only
+the tool for the format you touch is required:
+
+| Format                                                      | Extract | Create              |
+| ----------------------------------------------------------- | ------- | ------------------- |
+| `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`, `.tar.xz`, `.tar.zst` | `tar`   | `tar` (pack target) |
+| `.zip`                                                      | `unzip` | —                   |
+| `.7z`                                                       | `7z`    | —                   |
+| `.rar`                                                      | `unrar` | —                   |
+
+Extract progress counts entries with `tar -t` / `zipinfo`; `7z` and `unrar` show an
+indeterminate bar.
+
+Press `Enter` on any tar or `.zip` to browse it as a virtual directory tree — `Enter` and `h`
+walk it, `v`/`e` open members (see below). `.7z` and `.rar` have to be unpacked to disk first.
+
+With one pane inside an archive and the other on real files, `F5`/`c` or `F6`/`m` **adds** the
+selection to the archive at its current virtual directory. `p`/`u` still need a real
+destination pane.
+
+## View & edit
+
+`v` opens a file in a scrollable read-only viewer (`e` switches to editing, `q`/`Esc` closes);
+`e` opens it in a nano-style editor — `Ctrl+S` saves, `Ctrl+Q` quits, and `Esc` guards unsaved
+changes. Binary files are refused.
+
+Both work on archive members. An edited member is written back to the archive: a targeted
+update for zip and uncompressed tar, a transparent repack for compressed tar.
+
+View and edit are local-only; copy a remote file across first.
 
 ## Over ssh
 
@@ -130,7 +195,7 @@ so a key-based host never prompts at all.
 
 A host that isn't in `~/.ssh/known_hosts` shows its fingerprint for you to check
 before anything is sent to it; accepting appends it to `known_hosts`, as `ssh`
-would. A known host presenting a *different key of the same type* is refused
+would. A known host presenting a _different key of the same type_ is refused
 outright rather than offered as a yes/no — that is either a rebuilt server or an
 interception, and either way it wants looking at by hand. A key of an algorithm
 you have no entry for is just a key you have not seen, and prompts normally.
@@ -167,7 +232,7 @@ host:                         # the login directory
 
 While a pane is remote, plain paths in the address bar stay on that host; `local:/path`
 (or `file:///path`) brings it back to this machine. `Enter`/`h` walk the tree, `Space`
-marks, `s` sorts, `.` toggles hidden files.
+marks, `s` sorts, `.` toggles hidden files, and `n`/`N` create on the host.
 
 Not available over ssh: pack/unpack, browsing into archives, and view/edit — copy the
 file across first. Copying directly between two different hosts is refused; route it
@@ -220,20 +285,6 @@ Saved ssh connections share this file; see [Over ssh](#over-ssh).
 
 Themes are pure data — a name plus eight colours in `internal/ui/theme.go`. Adding one is a
 single struct literal; every style is rebuilt from it.
-
-## View & edit
-
-`v` opens a file in a scrollable read-only viewer; `e` opens it in a nano-style editor
-(`Ctrl+S` save, `Ctrl+Q`/`Esc` quit — `Esc` guards unsaved changes). Binary files are refused.
-
-This works **inside archives** too: press `Enter` on a `.tar`/`.tar.gz`/`.zip` to browse its
-contents as a virtual folder, then `v`/`e` on any member streams it into memory. Saving an
-edited member writes it back to the archive (targeted update for zip / uncompressed tar;
-transparent repack for compressed tar; `.7z`/`.rar` browsing requires unpacking).
-
-**Copying into archives**: with one pane browsing inside an archive and the other on real
-files, `F5`/`c` (copy) or `F6`/`m` (move) adds the selected files/folders as members at the
-archive's current virtual directory. `pack`/`unpack` still require a real destination pane.
 
 ## Development
 
